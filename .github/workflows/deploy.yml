@@ -1,9 +1,8 @@
-name: CI
+name: CI/CD Pipeline
 
 on:
   push:
     branches: [main, master, develop]
-  pull_request:
 
 permissions:
   contents: read
@@ -13,13 +12,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  spring-boot:
-    name: Spring Boot
+  # ==========================================
+  # 1. Spring Boot & FastAPI 빌드 및 Docker Hub Push
+  # ==========================================
+  build-and-push:
+    name: Build & Push Docker Images
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Docker Hub 로그인
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # --- [Spring Boot 빌드 & 푸시] ---
       - name: Set up Java 21
         uses: actions/setup-java@v4
         with:
@@ -30,34 +40,49 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build
+      - name: Build Spring Boot JAR
         run: ./gradlew build --no-daemon -x test
 
-      - name: Build Docker image
-        run: docker build -t borderless-proxy:ci .
+      - name: Build & Push Spring Boot Image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest .
+          docker push ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest
 
-  fastapi:
-    name: FastAPI
+      # --- [FastAPI 빌드 & 푸시] ---
+      - name: Build & Push FastAPI Image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/borderless-fastapi:latest ./fastapi
+          docker push ${{ secrets.DOCKER_USERNAME }}/borderless-fastapi:latest
+
+  # ==========================================
+  # 2. EC2 서버에 자동 배포 (CD)
+  # ==========================================
+  deploy:
+    name: Deploy to EC2
+    needs: build-and-push # 빌드 및 푸시가 성공한 후 실행
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: fastapi
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: EC2 SSH 접속 및 배포 명령 실행
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: fastapi/requirements.txt
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            docker pull ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest
+            docker pull ${{ secrets.DOCKER_USERNAME }}/borderless-fastapi:latest
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+            if [ -f "docker-compose.yml" ]; then
+              docker-compose pull
+              docker-compose up -d --remove-orphans
+            else
+              docker stop borderless-proxy || true
+              docker rm borderless-proxy || true
+              docker run -d -p 8080:8080 --name borderless-proxy ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest
 
-      - name: Import check
-        run: python -c "from app.main import app; assert app.title == 'borderless-fastapi'"
+              docker stop borderless-fastapi || true
+              docker rm borderless-fastapi || true
+              docker run -d -p 8000:8000 --name borderless-fastapi ${{ secrets.DOCKER_USERNAME }}/borderless-fastapi:latest
+            fi
 
-      - name: Build Docker image
-        run: docker build -t borderless-fastapi:ci .
+            docker image prune -f
