@@ -1,0 +1,15 @@
+.git
+.github
+.gradle
+.idea
+.vscode
+build
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.venv
+**/venv
+fastapi
+*.md
+.env
+.DS_Store
