@@ -39,6 +39,13 @@ out/
 ### Custom ###
 .env
 
+### Python / FastAPI ###
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
 ### macOs ###
 .DS_Store
 
