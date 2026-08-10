@@ -1,0 +1,88 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, master, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==========================================
+  # 1. Spring Boot & FastAPI 빌드 및 Docker Hub Push
+  # ==========================================
+  build-and-push:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Docker Hub 로그인
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # --- [Spring Boot 빌드 & 푸시] ---
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build Spring Boot JAR
+        run: ./gradlew build --no-daemon -x test
+
+      - name: Build & Push Spring Boot Image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest .
+          docker push ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest
+
+      # --- [FastAPI 빌드 & 푸시] ---
+      - name: Build & Push FastAPI Image
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/borderless-fastapi:latest ./fastapi
+          docker push ${{ secrets.DOCKER_USERNAME }}/borderless-fastapi:latest
+
+  # ==========================================
+  # 2. EC2 서버에 자동 배포 (CD)
+  # ==========================================
+  deploy:
+    name: Deploy to EC2
+    needs: build-and-push # 빌드 및 푸시가 성공한 후 실행
+    runs-on: ubuntu-latest
+    steps:
+      - name: EC2 SSH 접속 및 배포 명령 실행
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            docker pull ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest
+            docker pull ${{ secrets.DOCKER_USERNAME }}/borderless-fastapi:latest
+
+            if [ -f "docker-compose.yml" ]; then
+              docker-compose pull
+              docker-compose up -d --remove-orphans
+            else
+              docker stop borderless-proxy || true
+              docker rm borderless-proxy || true
+              docker run -d -p 8080:8080 --name borderless-proxy ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest
+
+              docker stop borderless-fastapi || true
+              docker rm borderless-fastapi || true
+              docker run -d -p 8000:8000 --name borderless-fastapi ${{ secrets.DOCKER_USERNAME }}/borderless-fastapi:latest
+            fi
+
+            docker image prune -f
