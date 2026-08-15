@@ -45,6 +45,12 @@ final class RoutingSamples {
     static final String EQUIVALENT_VIETNAMESE = "Tôi đã viết quy trình vận hành chuẩn cho việc triển khai.";
     static final String EQUIVALENT_TAGALOG = "Nagsulat ako ng pamantayang paraan ng pagpapatakbo para sa paglalabas.";
 
+    /** 긴 한국어 문단. 매핑 테이블에 없는 언어라 TIER_1로 폴백해야 한다. */
+    static final String LONG_KOREAN = """
+            배포 파이프라인은 메인 브랜치에 새로운 커밋이 올라올 때마다 자동으로 실행됩니다. \
+            애플리케이션을 빌드하고 전체 테스트를 실행한 다음 컨테이너 이미지를 레지스트리에 올립니다. \
+            중간에 어느 단계라도 실패하면 팀 전체에 알림이 가고 누군가 원인을 확인할 때까지 배포가 중단됩니다.""";
+
     /** 이모지와 숫자만으로 구성된 텍스트. 201 토큰이라 임계치는 넘지만 언어를 특정할 수 없다. */
     static final String EMOJI_AND_DIGITS_ONLY = "🚀🎉🔥 1234567890 ".repeat(20);
 
