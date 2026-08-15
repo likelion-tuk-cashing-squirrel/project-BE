@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>파이프라인 흐름도 · Borderless AI Proxy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #101114; --panel: #17181c; --panel-2: #1d1e23; --line: #2a2b31;
+    --text: #eceef0; --text-dim: #9a9ca3;
+    --accent: #7c8cff; --accent-dim: #7c8cff22;
+    --t2: #38bdf8; --t3: #fb923c;
+    --good: #4ade80;
+    --mono: 'JetBrains Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Pretendard', sans-serif; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 56px 24px 100px; }
+
+  header { margin-bottom: 48px; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 14px; }
+  h1 { font-size: clamp(26px, 4vw, 38px); font-weight: 900; margin-bottom: 12px; }
+  .lede { font-size: 15px; color: var(--text-dim); max-width: 600px; }
+
+  /* Flow */
+  .flow-col { display: flex; flex-direction: column; align-items: center; gap: 0; margin: 40px 0; }
+  .node {
+    width: 100%; max-width: 480px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 18px 22px; text-align: left; position: relative;
+  }
+  .node .n-step { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 0.06em; margin-bottom: 6px; }
+  .node .n-title { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .node .n-desc { font-size: 13px; color: var(--text-dim); }
+  .node.start { border-color: var(--accent); background: var(--accent-dim); }
+  .node.end { border-color: var(--good); }
+
+  .arrow-down { font-family: var(--mono); color: var(--line); font-size: 22px; padding: 6px 0; }
+
+  /* Branch */
+  .branch-wrap { display: flex; gap: 20px; width: 100%; max-width: 700px; justify-content: center; }
+  .branch { flex: 1; display: flex; flex-direction: column; align-items: center; }
+  .branch-label {
+    font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.05em;
+    padding: 4px 12px; border-radius: 20px; margin-bottom: 12px;
+  }
+  .branch-label.t2 { color: var(--t2); background: #38bdf822; border: 1px solid var(--t2); }
+  .branch-label.t3 { color: var(--t3); background: #fb923c22; border: 1px solid var(--t3); }
+  .branch .node { border-left: 3px solid var(--line); }
+  .branch:first-child .node { border-left-color: var(--t2); }
+  .branch:last-child .node { border-left-color: var(--t3); }
+  .branch .arrow-down { font-size: 18px; padding: 4px 0; }
+  .skip-note { font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); text-align: center; margin-top: 6px; }
+
+  .merge-line { font-family: var(--mono); color: var(--line); font-size: 11px; text-align: center; margin: 4px 0; }
+
+  /* Example */
+  .example-box {
+    margin-top: 56px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 28px 30px;
+  }
+  .example-box h2 { font-family: var(--mono); font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 18px; }
+  .ex-row { display: flex; align-items: center; gap: 12px; font-size: 14px; margin-bottom: 10px; flex-wrap: wrap; }
+  .ex-row:last-child { margin-bottom: 0; }
+  .ex-tag { font-family: var(--mono); font-size: 10.5px; color: var(--accent); background: var(--accent-dim); padding: 2px 8px; border-radius: 4px; flex-shrink: 0; width: 70px; text-align: center; }
+  .ex-arrow { color: var(--text-dim); font-family: var(--mono); }
+  .ex-text { color: var(--text); }
+  .ex-text.dim { color: var(--text-dim); font-style: italic; }
+
+  footer { margin-top: 48px; font-family: var(--mono); font-size: 11px; color: var(--text-dim); border-top: 1px solid var(--line); padding-top: 20px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">캐싱스쿼럴 · Borderless AI Proxy</div>
+    <h1>프록시 파이프라인 흐름도</h1>
+    <p class="lede">프롬프트가 들어와서 응답이 나가기까지, 요청이 실제로 거치는 5단계 + 언어 티어 분기.</p>
+  </header>
+
+  <div class="flow-col">
+
+    <div class="node start">
+      <div class="n-step">STEP 00 · INPUT</div>
+      <div class="n-title">클라이언트 요청 수신</div>
+      <div class="n-desc">팀원이 자기 언어로 요청 입력 → 프록시 서버가 요청 수신</div>
+    </div>
+    <div class="arrow-down">↓</div>
+
+    <div class="node">
+      <div class="n-step">STEP 01 · ROUTER</div>
+      <div class="n-title">언어 감지 & 티어 분류</div>
+      <div class="n-desc">langdetect로 언어 판별 → TIER 2(비용 문제) / TIER 3(비용+이해력 문제) 분기</div>
+    </div>
+    <div class="arrow-down">↓</div>
+
+    <div class="node">
+      <div class="n-step">STEP 02 · MASKING</div>
+      <div class="n-title">용어집 마스킹</div>
+      <div class="n-desc">팀 네임스페이스 용어집 조회 → 고유명사·전문용어를 {TERM_01} 형태로 치환 (FlashText)</div>
+    </div>
+    <div class="arrow-down">↓</div>
+
+    <div class="branch-wrap">
+      <div class="branch">
+        <div class="branch-label t2">TIER 2</div>
+        <div class="node">
+          <div class="n-step">STEP 03-A</div>
+          <div class="n-title">바로 영어 피벗</div>
+          <div class="n-desc">형태소 처리 없이 곧장 영어로 변환</div>
+        </div>
+        <div class="skip-note">형태소 분석 skip</div>
+      </div>
+      <div class="branch">
+        <div class="branch-label t3">TIER 3</div>
+        <div class="node">
+          <div class="n-step">STEP 03-B</div>
+          <div class="n-title">형태소 힌트 주입 후 피벗</div>
+          <div class="n-desc">tagalog-stemmer로 어근+접사 분해 → 힌트 포함해 영어로 변환</div>
+        </div>
+      </div>
+    </div>
+    <div class="merge-line">└──────────────┬──────────────┘</div>
+    <div class="arrow-down">↓</div>
+
+    <div class="node">
+      <div class="n-step">STEP 04 · LLM</div>
+      <div class="n-title">영어로 추론 + 답변 생성</div>
+      <div class="n-desc">OpenAI API 1회 호출 (번역+답변 통합 프롬프트, 비용/속도 최적 구간)</div>
+    </div>
+    <div class="arrow-down">↓</div>
+
+    <div class="node">
+      <div class="n-step">STEP 05 · OUTPUT</div>
+      <div class="n-title">원어 재번역 + 마스킹 복원</div>
+      <div class="n-desc">LibreTranslate(오픈소스)로 원어 재번역 → {TERM_01}을 원래 용어로 복원</div>
+    </div>
+    <div class="arrow-down">↓</div>
+
+    <div class="node end">
+      <div class="n-step">STEP 06 · RESPONSE</div>
+      <div class="n-title">클라이언트 응답 + 대시보드 로깅</div>
+      <div class="n-desc">최종 답변 전송, 동시에 토큰/비용/속도 실시간 대시보드에 기록</div>
+    </div>
+
+  </div>
+
+  <div class="example-box">
+    <h2>예시 · 필리핀어 문장 하나가 지나가는 경로 (TIER 3)</h2>
+    <div class="ex-row">
+      <span class="ex-tag">IN</span><span class="ex-arrow">→</span>
+      <span class="ex-text">"Nagsulat ako ng SOP1 para sa deployment"</span>
+    </div>
+    <div class="ex-row">
+      <span class="ex-tag">01</span><span class="ex-arrow">→</span>
+      <span class="ex-text">언어 감지 → TIER 3</span>
+    </div>
+    <div class="ex-row">
+      <span class="ex-tag">02</span><span class="ex-arrow">→</span>
+      <span class="ex-text">"SOP1" → <span class="ex-text dim">{TERM_01}</span>로 마스킹</span>
+    </div>
+    <div class="ex-row">
+      <span class="ex-tag">03-B</span><span class="ex-arrow">→</span>
+      <span class="ex-text">nagsulat = 어근 sulat + 접두사 nag → 힌트 포함 영어 변환</span>
+    </div>
+    <div class="ex-row">
+      <span class="ex-tag">04</span><span class="ex-arrow">→</span>
+      <span class="ex-text dim">"I wrote {TERM_01} for the deployment" 기반으로 답변 생성</span>
+    </div>
+    <div class="ex-row">
+      <span class="ex-tag">05</span><span class="ex-arrow">→</span>
+      <span class="ex-text">영어 답변 → 필리핀어 재번역 → {TERM_01} → "SOP1" 복원</span>
+    </div>
+    <div class="ex-row">
+      <span class="ex-tag">OUT</span><span class="ex-arrow">→</span>
+      <span class="ex-text">필리핀어로 정확한 최종 답변 반환</span>
+    </div>
+  </div>
+
+  <footer>캐싱스쿼럴 · Borderless AI Proxy · LIKELION TRACK HACKATHON 2026 · 파이프라인 아키텍처 메모</footer>
+
+</div>
+</body>
+</html>
