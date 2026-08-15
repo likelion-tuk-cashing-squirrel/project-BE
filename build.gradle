@@ -23,6 +23,8 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	// 라우팅: OpenAI 토큰 수 계산 (o200k_base 인코딩 지원 버전)
 	implementation 'com.knuddels:jtokkit:1.1.0'
+	// 라우팅: 언어 감지 (내장 프로파일에 en/vi/tl 포함)
+	implementation 'com.optimaize.languagedetector:language-detector:0.6'
 	compileOnly 'org.projectlombok:lombok'
 	runtimeOnly 'com.mysql:mysql-connector-j'
 	annotationProcessor 'org.projectlombok:lombok'
