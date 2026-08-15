@@ -54,6 +54,12 @@ final class RoutingSamples {
     /** 이모지와 숫자만으로 구성된 텍스트. 201 토큰이라 임계치는 넘지만 언어를 특정할 수 없다. */
     static final String EMOJI_AND_DIGITS_ONLY = "🚀🎉🔥 1234567890 ".repeat(20);
 
+    /** 이모지만 있는 짧은 텍스트. 임계치 미만이라 언어 감지까지 가지 않는다. */
+    static final String EMOJI_ONLY = "🚀🎉🔥✨💥🌏";
+
+    /** 이모지만 있는 긴 텍스트. 임계치는 넘지만 언어 특성이 없어 폴백해야 한다. */
+    static final String LONG_EMOJI_ONLY = "🚀🎉🔥✨💥🌏".repeat(30);
+
     /** 공백 문자만 있는 텍스트. */
     static final String WHITESPACE_ONLY = " \t\n\r\u00A0  ";
 
