@@ -2,6 +2,10 @@ spring:
   application:
     name: proxy
 
+  threads:
+    virtual:
+      enabled: true
+
   datasource:
     url: jdbc:mysql://localhost:3306/borderless?useSSL=false&serverTimezone=UTC
     username: root

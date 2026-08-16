@@ -21,4 +21,11 @@ public class Glossary {
     private String namespace;
 
     private String description;
+
+    @Builder
+    public Glossary(Team team, String namespace, String description) {
+        this.team = team;
+        this.namespace = namespace;
+        this.description = description;
+    }
 }

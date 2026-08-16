@@ -23,4 +23,12 @@ public class GlossaryTerm {
     private String maskedToken;
 
     private String translation;
+
+    @Builder
+    public GlossaryTerm(Glossary glossary, String sourceTerm, String maskedToken, String translation) {
+        this.glossary = glossary;
+        this.sourceTerm = sourceTerm;
+        this.maskedToken = maskedToken;
+        this.translation = translation;
+    }
 }
