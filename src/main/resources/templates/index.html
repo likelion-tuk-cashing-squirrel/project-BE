@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Borderless AI Proxy</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+
+<div class="container">
+    <h1>Borderless AI 번역 프록시</h1>
+    <div class="subtitle">토큰 효율성을 극대화한 스마트 AI 번역 시스템</div>
+
+    <label for="inputText">번역할 문장을 입력하세요</label>
+    <textarea id="inputText" placeholder="여기에 텍스트를 입력하세요..."></textarea>
+
+    <button onclick="sendTranslationRequest()">번역 요청하기</button>
+
+    <div id="resultArea">
+        <h3>결과 화면</h3>
+        <p id="outputText">아직 요청된 번역이 없습니다.</p>
+    </div>
+</div>
+
+</body>
+</html>
