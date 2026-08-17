@@ -7,7 +7,7 @@ spring:
       enabled: true
 
   datasource:
-    url: jdbc:mysql://172.31.32.42:3306/borderless?useSSL=false&serverTimezone=UTC
+    url: jdbc:mysql://172.31.32.42:3306/borderless?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: root
     password: root
 
