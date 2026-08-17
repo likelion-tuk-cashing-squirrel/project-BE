@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Borderless AI Proxy</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        textarea { width: 100%; height: 100px; margin-bottom: 10px; }
+        #resultArea { margin-top: 20px; padding: 15px; background-color: #f4f4f4; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+<h1>Borderless AI 번역 프록시</h1>
+
+<label for="inputText">번역할 문장을 입력하세요:</label>
+<textarea id="inputText" placeholder="여기에 텍스트를 입력하세요..."></textarea>
+
+<button onclick="sendTranslationRequest()">번역 요청하기</button>
+
+<div id="resultArea">
+    <h3>결과 화면:</h3>
+    <p id="outputText">아직 요청된 번역이 없습니다.</p>
+</div>
+</body>
+</html>
