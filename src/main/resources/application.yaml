@@ -7,10 +7,9 @@ spring:
       enabled: true
 
   datasource:
-    url: jdbc:mysql://localhost:3306/borderless?useSSL=false&serverTimezone=UTC
+    url: jdbc:mysql://172.31.32.42:3306/borderless?useSSL=false&serverTimezone=UTC
     username: root
-    password:
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    password: root
 
   jpa:
     hibernate:
