@@ -64,11 +64,22 @@ jobs:
     steps:
       - name: EC2 SSH 접속 및 배포 명령 실행
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
+          DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: DB_URL,DB_USERNAME,DB_PASSWORD,KAKAO_CLIENT_ID
           script: |
+            export DB_URL=$DB_URL
+            export DB_USERNAME=$DB_USERNAME
+            export DB_PASSWORD=$DB_PASSWORD
+            export KAKAO_CLIENT_ID=$KAKAO_CLIENT_ID
+            
             docker pull ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest
             docker pull ${{ secrets.DOCKER_USERNAME }}/borderless-fastapi:latest
 
@@ -78,7 +89,7 @@ jobs:
             else
               docker stop borderless-proxy || true
               docker rm borderless-proxy || true
-              docker run -d -p 8080:8080 --name borderless-proxy ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest
+              docker run -d -p 8080:8080 -e DB_URL="$DB_URL" -e DB_USERNAME="$DB_USERNAME" -e DB_PASSWORD="$DB_PASSWORD" -e KAKAO_CLIENT_ID="$KAKAO_CLIENT_ID" --name borderless-proxy ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest
 
               docker stop borderless-fastapi || true
               docker rm borderless-fastapi || true

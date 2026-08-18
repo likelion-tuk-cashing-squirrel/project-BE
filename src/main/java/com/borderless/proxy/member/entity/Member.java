@@ -16,11 +16,6 @@ public class Member {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 물리적 FK 제약조건 생성 방지
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "team_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
-    private Team team;
-
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 50)
     private AuthProvider provider;
@@ -31,13 +26,18 @@ public class Member {
     @Column(nullable = false, length = 100)
     private String name;
 
-    @Column(nullable = false)
-    private String email;
-
     @Column(length = 10)
     private String nativeLang;
 
     @CreatedDate
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Builder
+    public Member(AuthProvider provider, String providerId, String name, String nativeLang) {
+        this.provider = provider;
+        this.providerId = providerId;
+        this.name = name;
+        this.nativeLang = nativeLang;
+    }
 }

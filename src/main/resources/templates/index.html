@@ -4,21 +4,206 @@
     <meta charset="UTF-8">
     <title>Borderless AI Proxy</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
+    <link rel="icon" href="data:,">
 </head>
+
+<script>
+    function $(id) {
+        return document.getElementById(id);
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        loadGlossaryTerms();
+    });
+
+    async function sendTranslationRequest() {
+        const inputTextEl = $("inputText");
+        const outputTextEl = $("outputText");
+
+        const text = inputTextEl.value.trim();
+        if (!text) {
+            alert("번역할 문장을 입력해주세요.");
+            return;
+        }
+
+        outputTextEl.textContent = "번역 중입니다...";
+        try {
+            const response = await fetch("/api/proxy", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ text })
+            });
+
+            if (!response.ok) throw new Error(await readError(response));
+            const data = await response.json();
+            outputTextEl.textContent = data.result ?? "결과가 비어 있습니다.";
+        } catch (e) {
+            outputTextEl.textContent = e.message;
+        }
+    }
+
+    async function loadGlossaryTerms() {
+        const wordListEl = $("wordList");
+
+        try {
+            const response = await fetch("/api/glossary/terms", {
+                method: "GET",
+                credentials: "include"
+            });
+
+            if (!response.ok) throw new Error(await readError(response));
+            const terms = await response.json();
+            renderGlossaryTerms(terms);
+        } catch (e) {
+            wordListEl.innerHTML = `<li class="word-item">${escapeHtml(e.message)}</li>`;
+        }
+    }
+
+    async function addGlossaryTerm() {
+        const sourceTermInputEl = $("sourceTermInput");
+        const translationInputEl = $("translationInput");
+
+        const sourceTerm = sourceTermInputEl.value.trim();
+        const translation = translationInputEl.value.trim();
+
+        if (!sourceTerm || !translation) {
+            alert("원문/번역을 모두 입력해주세요.");
+            return;
+        }
+
+        try {
+            const response = await fetch("/api/glossary/terms", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ sourceTerm, translation })
+            });
+
+            if (!response.ok) throw new Error(await readError(response));
+
+            sourceTermInputEl.value = "";
+            translationInputEl.value = "";
+            await loadGlossaryTerms();
+        } catch (e) {
+            alert(e.message);
+        }
+    }
+
+    async function deleteGlossaryTerm(termId) {
+        try {
+            const response = await fetch(`/api/glossary/terms/${termId}`, {
+                method: "DELETE",
+                credentials: "include"
+            });
+
+            if (!response.ok) throw new Error(await readError(response));
+            await loadGlossaryTerms();
+        } catch (e) {
+            alert(e.message);
+        }
+    }
+
+    function renderGlossaryTerms(terms) {
+        const wordListEl = $("wordList");
+
+        if (!terms.length) {
+            wordListEl.innerHTML = `<li class="word-item"><span>등록된 단어가 없습니다.</span></li>`;
+            return;
+        }
+
+        wordListEl.innerHTML = terms.map(term => `
+            <li class="word-item">
+                <span><strong>${escapeHtml(term.sourceTerm)}</strong> ➔ ${escapeHtml(term.translation)}</span>
+                <button class="btn-delete" type="button" onclick="deleteGlossaryTerm(${term.id})">삭제</button>
+            </li>
+        `).join("");
+    }
+
+    async function readError(response) {
+        try {
+            const body = await response.json();
+            return body.message || `요청 실패 (${response.status})`;
+        } catch (_) {
+            return `요청 실패 (${response.status})`;
+        }
+    }
+
+    function escapeHtml(value) {
+        return String(value)
+            .replaceAll("&", "&amp;")
+            .replaceAll("<", "&lt;")
+            .replaceAll(">", "&gt;")
+            .replaceAll('"', "&quot;")
+            .replaceAll("'", "&#39;");
+    }
+</script>
+
 <body>
 
-<div class="container">
-    <h1>Borderless AI 번역 프록시</h1>
-    <div class="subtitle">토큰 효율성을 극대화한 스마트 AI 번역 시스템</div>
+<!-- 우측 상단 닉네임 및 로그아웃 버튼 영역 -->
+<div class="header">
+    <span th:text="${nickname} + '님 환영합니다!'">사용자님 환영합니다!</span>
+    <form th:action="@{/logout}" method="post">
+        <button type="submit" class="btn-logout">로그아웃</button>
+    </form>
+</div>
 
-    <label for="inputText">번역할 문장을 입력하세요</label>
-    <textarea id="inputText" placeholder="여기에 텍스트를 입력하세요..."></textarea>
+<!-- 대시보드 메인 레이아웃 -->
+<div class="dashboard-container">
 
-    <button onclick="sendTranslationRequest()">번역 요청하기</button>
+    <!-- 왼쪽: 번역 요청 영역 (비율 6) -->
+    <div class="panel left-panel">
+        <h1>Borderless AI 번역 프록시</h1>
+        <div class="subtitle">토큰 효율성을 극대화한 스마트 AI 번역 시스템</div>
 
-    <div id="resultArea">
-        <h3>결과 화면</h3>
-        <p id="outputText">아직 요청된 번역이 없습니다.</p>
+        <label for="inputText">번역할 문장을 입력하세요</label>
+        <textarea id="inputText" placeholder="여기에 텍스트를 입력하세요..."></textarea>
+
+        <button onclick="sendTranslationRequest()">번역 요청하기 (토큰 최적화 적용)</button>
+
+        <div id="resultArea">
+            <h3>결과 화면</h3>
+            <p id="outputText">아직 요청된 번역이 없습니다.</p>
+        </div>
+    </div>
+
+    <!-- 오른쪽: 단어장 및 비용 절감 영역 (비율 4) -->
+    <div class="right-panel">
+
+        <!-- 우측 상단: 개인 단어장 -->
+        <div class="panel glossary-panel">
+            <h2>내 단어장 (Glossary)</h2>
+
+            <div class="word-input-group">
+                <input id="sourceTermInput" type="text" placeholder="원문 (예: 프록시)">
+                <input id="translationInput" type="text" placeholder="번역 (예: Proxy)">
+                <button class="btn-add" type="button" onclick="addGlossaryTerm()">추가</button>
+            </div>
+
+            <ul class="word-list" id="wordList">
+                <!-- 하드코딩된 예시 데이터 (추후 DB 연동 시 타임리프로 반복 처리) -->
+                <li class="word-item">
+                    <span><strong>프록시</strong> ➔ Proxy</span>
+                    <button class="btn-delete">삭제</button>
+                </li>
+                <li class="word-item">
+                    <span><strong>멋사</strong> ➔ Like Lion</span>
+                    <button class="btn-delete">삭제</button>
+                </li>
+            </ul>
+        </div>
+
+        <!-- 우측 하단: 절약 비용 표시 -->
+        <div class="panel savings-panel">
+            <h2>💰 실제 절약한 API 비용</h2>
+            <p class="savings-desc">단어장 치환으로 줄인 토큰을 금액으로 환산했습니다.</p>
+            <div class="savings-amount">
+                ₩ 12,450
+            </div>
+            <p class="savings-tokens">절약된 누적 토큰: 4,150 Tokens</p>
+        </div>
+
     </div>
 </div>
 
