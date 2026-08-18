@@ -78,3 +78,20 @@ app:
 logging:
   level:
     com.borderless.proxy.client: DEBUG
+
+
+# 과금. 단가는 공급자가 예고 없이 바꾸고 수수료율은 정책값이라 코드에 하드코딩하지 않는다.
+billing:
+  # 절약한 금액에 곱하는 성과 수수료율. 원가에 얹는 마크업이 아니라 절약분에만 적용된다.
+  fee-rate: 0.10
+  # 모델별 단가(USD / 100만 토큰). 키는 UsageLog.modelName에 저장할 이름과 맞춘다.
+  # 공급자 가격표 공시 단위를 그대로 옮겨 적는다. 토큰 1개당으로 환산해 적으면 자리수를 틀리기 쉽다.
+  # 출력 단가가 입력의 4배라 반드시 따로 둔다. 하나로 합치면 절감 금액이 크게 틀어진다.
+  models:
+    # 공시 기준 값이다. 호출 모델을 확정하면 최신 단가를 반드시 재확인할 것.
+    gpt-4o:
+      input-per-million: 2.50
+      output-per-million: 10.00
+    gpt-4o-mini:
+      input-per-million: 0.15
+      output-per-million: 0.60
