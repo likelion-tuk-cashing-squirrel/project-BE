@@ -41,3 +41,30 @@ routing:
   token-threshold: 50
   # 언어 감지 신뢰도. 이 값 미만이면 오판으로 보고 TIER_1(영어 취급)로 폴백한다.
   confidence-threshold: 0.7
+
+# ---------------------------------------------------------------------------
+# 외부 API 설정 (client 파트)
+# API 키는 반드시 환경변수로 주입. 값을 직접 적어서 커밋하지 말 것
+# 로컬 실행 시 .env 파일 사용 (build.gradle이 읽어서 환경변수로 주입)
+# ---------------------------------------------------------------------------
+app:
+  openai:
+    base-url: ${OPENAI_BASE_URL:}
+    api-key: ${OPENAI_API_KEY:}
+    model: ${OPENAI_DEFAULT_MODEL:}
+    temperature: 0.3
+    max-tokens: 2048
+    timeout: 30s
+    max-retries: 2
+
+  deepl:
+    # 키가 ':fx'로 끝나면(무료/Developer 키) api-free.deepl.com 사용
+    # 어긋나면 403 Wrong endpoint 발생
+    base-url: ${DEEPL_BASE_URL:}
+    api-key: ${DEEPL_API_KEY:}
+    timeout: 10s
+    max-retries: 2
+
+logging:
+  level:
+    com.borderless.proxy.client: DEBUG
