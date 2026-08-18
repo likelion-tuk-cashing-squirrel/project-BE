@@ -10,6 +10,6 @@ import java.util.List;
 public interface GlossaryTermRepository extends JpaRepository<GlossaryTerm, Long> {
     List<GlossaryTerm> findByGlossaryId(Long glossaryId);
 
-    @Query("SELECT gt FROM GlossaryTerm gt JOIN gt.glossary g WHERE g.team.id = :teamId")
-    List<GlossaryTerm> findAllByTeamId(@Param("teamId") Long teamId);
+    @Query("SELECT gt FROM GlossaryTerm gt JOIN gt.glossary g WHERE g.member.id = :memberId")
+    List<GlossaryTerm> findAllByMemberId(@Param("memberId") Long memberId);
 }

@@ -7,6 +7,8 @@
     --accent-hover: #4f46e5;
     --border-color: #334155;
     --result-bg: #090d16;
+    --danger-color: #ef4444;
+    --danger-hover: #dc2626;
 }
 
 body {
@@ -14,29 +16,100 @@ body {
     background-color: var(--bg-color);
     color: var(--text-primary);
     margin: 0;
-    padding: 40px 20px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    /* 기존 화면 중앙 정렬 대신 대시보드 형태의 여백 설정 */
+    padding: 80px 40px 40px 40px;
     min-height: 100vh;
+    box-sizing: border-box;
 }
 
-.container {
+/* 헤더 (닉네임 + 로그아웃) */
+.header {
+    position: absolute;
+    top: 20px;
+    right: 30px;
+    display: flex;
+    align-items: center;
+    color: var(--text-primary);
+}
+
+.header span {
+    margin-right: 15px;
+    font-size: 15px;
+    font-weight: bold;
+}
+
+.btn-logout {
+    background-color: var(--danger-color);
+    width: auto;
+    padding: 8px 16px;
+    font-size: 14px;
+}
+
+.btn-logout:hover {
+    background-color: var(--danger-hover);
+}
+
+/* 대시보드 레이아웃 (좌우 분할) */
+.dashboard-container {
+    display: flex;
+    gap: 24px;
     width: 100%;
-    max-width: 650px;
+    max-width: 1400px;
+    margin: 0 auto;
+    height: calc(100vh - 120px); /* 화면 꽉 차게 높이 설정 */
+}
+
+/* 공통 패널 스타일 (기존 container 스타일 활용) */
+.panel {
     background-color: var(--card-bg);
     border: 1px solid var(--border-color);
     border-radius: 16px;
     padding: 32px;
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
 }
 
+/* 좌측 번역 패널 */
+.left-panel {
+    flex: 6; /* 60% 차지 */
+}
+
+/* 우측 단어장 및 비용 패널 */
+.right-panel {
+    flex: 4; /* 40% 차지 */
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.glossary-panel {
+    flex: 2; /* 단어장이 더 넓게 */
+    overflow: hidden; /* 리스트가 길어지면 내부에서 스크롤 되도록 */
+}
+
+/* 우측 하단 절약 금액 패널 포인트 컬러 적용 */
+.savings-panel {
+    flex: 1;
+    background: linear-gradient(135deg, var(--accent-color) 0%, #3730a3 100%);
+    border: none;
+    justify-content: center;
+}
+
+/* 텍스트 요소들 */
 h1 {
     font-size: 1.5rem;
     font-weight: 700;
     margin-top: 0;
     margin-bottom: 8px;
     letter-spacing: -0.025em;
+}
+
+h2 {
+    font-size: 1.25rem;
+    margin-top: 0;
+    margin-bottom: 20px;
+    color: var(--text-primary);
 }
 
 .subtitle {
@@ -87,20 +160,18 @@ button {
     transition: background-color 0.2s, transform 0.1s;
 }
 
-button:hover {
-    background-color: var(--accent-hover);
-}
+button:hover { background-color: var(--accent-hover); }
+button:active { transform: scale(0.99); }
 
-button:active {
-    transform: scale(0.99);
-}
-
+/* 결과 화면 (아래 공간을 다 채우도록 flex-grow 적용) */
 #resultArea {
     margin-top: 24px;
     padding: 20px;
     background-color: var(--result-bg);
     border: 1px solid var(--border-color);
     border-radius: 8px;
+    flex-grow: 1; /* 남은 공간 채우기 */
+    overflow-y: auto;
 }
 
 #resultArea h3 {
@@ -118,4 +189,84 @@ button:active {
     line-height: 1.5;
     color: var(--text-primary);
     white-space: pre-wrap;
+}
+
+/* ====== 단어장(Glossary) UI 요소 ====== */
+.word-input-group {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.word-input-group input {
+    flex: 1;
+    padding: 10px;
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    border-radius: 6px;
+    font-size: 0.9rem;
+}
+
+.word-input-group input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+}
+
+.btn-add {
+    width: auto;
+    padding: 10px 20px;
+}
+
+.word-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    overflow-y: auto; /* 리스트가 길어지면 스크롤 */
+    flex-grow: 1;
+}
+
+.word-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--border-color);
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    font-size: 0.95rem;
+}
+
+.btn-delete {
+    background-color: var(--danger-color);
+    width: auto;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+}
+
+.btn-delete:hover {
+    background-color: var(--danger-hover);
+}
+
+/* ====== 절약 비용(Savings) UI 요소 ====== */
+.savings-desc {
+    text-align: center;
+    margin: 0;
+    color: #e0e7ff; /* 밝은 텍스트 */
+    font-size: 0.9rem;
+}
+
+.savings-amount {
+    font-size: 3rem;
+    font-weight: bold;
+    text-align: center;
+    margin: 20px 0;
+    color: white;
+}
+
+.savings-tokens {
+    text-align: center;
+    margin: 0;
+    font-size: 0.85rem;
+    color: #c7d2fe; /* 연한 텍스트 */
 }
