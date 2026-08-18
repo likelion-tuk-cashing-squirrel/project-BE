@@ -45,7 +45,7 @@ class TermMaskerTest {
                 .build();
 
         List<GlossaryTerm> mockTerms = new ArrayList<>(List.of(term1, term2));
-        given(glossaryTermRepository.findAllByTeamId(teamId)).willReturn(mockTerms);
+        given(glossaryTermRepository.findAllByMemberId(teamId)).willReturn(mockTerms);
 
         MaskingResultDTO result = termMasker.maskText(teamId, originalText);
 
