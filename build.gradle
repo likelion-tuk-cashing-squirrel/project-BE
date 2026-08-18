@@ -41,11 +41,55 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-starter-data-jpa-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webflux-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
 	testCompileOnly 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 	testAnnotationProcessor 'org.projectlombok:lombok'
 }
 
+// ---------------------------------------------------------------------------
+// .env 파일을 읽어 test / bootRun 의 환경변수로 주입
+// Gradle도 Spring도 .env 를 자동으로 읽지 않으므로 여기서 직접 처리
+// 실제 OS 환경변수가 이미 있으면 그쪽 우선 (CI/서버에서는 .env 없이 동작)
+// ---------------------------------------------------------------------------
+def dotenv = [:]
+def dotenvFile = rootProject.file('.env')
+if (dotenvFile.exists()) {
+	dotenvFile.eachLine('UTF-8') { rawLine ->
+		def line = rawLine.trim()
+		if (line.isEmpty() || line.startsWith('#')) {
+			return
+		}
+		def idx = line.indexOf('=')
+		if (idx <= 0) {
+			return
+		}
+		def key = line.substring(0, idx).trim()
+		def value = line.substring(idx + 1).trim()
+		if (value.length() >= 2 && value.startsWith('"') && value.endsWith('"')) {
+			value = value.substring(1, value.length() - 1)
+		}
+		dotenv[key] = value
+	}
+	logger.lifecycle(".env 로드: ${dotenv.keySet().join(', ')}")
+}
+
 tasks.named('test') {
 	useJUnitPlatform()
+
+	// .env 값 주입 (OS 환경변수가 이미 있으면 그쪽 우선)
+	dotenv.each { k, v ->
+		if (System.getenv(k) == null) {
+			environment k, v
+		}
+	}
+}
+
+// 로컬 실행(./gradlew bootRun)에도 .env 주입
+tasks.named('bootRun') {
+	dotenv.each { k, v ->
+		if (System.getenv(k) == null) {
+			environment k, v
+		}
+	}
 }
