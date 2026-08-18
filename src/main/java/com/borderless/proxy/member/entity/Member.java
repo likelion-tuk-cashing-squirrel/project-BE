@@ -31,13 +31,19 @@ public class Member {
     @Column(nullable = false, length = 100)
     private String name;
 
-    @Column(nullable = false)
-    private String email;
-
     @Column(length = 10)
     private String nativeLang;
 
     @CreatedDate
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    @Builder
+    public Member(Team team, AuthProvider provider, String providerId, String name, String nativeLang) {
+        this.team = team;
+        this.provider = provider;
+        this.providerId = providerId;
+        this.name = name;
+        this.nativeLang = nativeLang;
+    }
 }
