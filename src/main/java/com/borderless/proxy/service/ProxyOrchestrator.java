@@ -17,13 +17,10 @@ public class ProxyOrchestrator {
     private final TermRestorer termRestorer;
 
     // 손님 주문(요청)이 들어오면 이 함수가 전체 흐름을 지휘한다
-    public ProxyResponseDto process(ProxyRequestDto request) {
+    public ProxyResponseDto process(ProxyRequestDto request, Long memberId) {
 
         // 손님이 입력한 원본 텍스트
         String originalText = request.getText();
-
-        // 팀 번호 (지금은 임시로 1번 팀으로 고정. 나중에 로그인 정보에서 가져올 예정)
-        Long teamId = 1L;
 
         // ===== 1. 라우팅 판별 =====
         // TODO: 라우팅(CostRouter) 담당 코드가 develop에 병합되면 여기 연결
@@ -31,7 +28,7 @@ public class ProxyOrchestrator {
 
         // ===== 2. 마스킹 =====
         // 고유명사를 {TERM_01} 같은 토큰으로 가린다
-        MaskingResultDTO masked = termMasker.maskText(teamId, originalText);
+        MaskingResultDTO masked = termMasker.maskText(memberId, originalText);
         String maskedText = masked.getMaskedText();       // 가려진 텍스트
         var dictionary = masked.getDictionary();          // 나중에 되돌릴 사전
 
