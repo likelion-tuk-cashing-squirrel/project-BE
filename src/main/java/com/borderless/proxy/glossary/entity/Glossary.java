@@ -1,6 +1,6 @@
 package com.borderless.proxy.glossary.entity;
 
-import com.borderless.proxy.member.entity.Team;
+import com.borderless.proxy.member.entity.Member;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -13,9 +13,9 @@ public class Glossary {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "team_id", nullable = false, foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
-    private Team team;
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "member_id", nullable = false, unique = true, foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
+    private Member member;
 
     @Column(nullable = false, length = 100)
     private String namespace;
@@ -23,8 +23,8 @@ public class Glossary {
     private String description;
 
     @Builder
-    public Glossary(Team team, String namespace, String description) {
-        this.team = team;
+    public Glossary(Member member, String namespace, String description) {
+        this.member = member;
         this.namespace = namespace;
         this.description = description;
     }
