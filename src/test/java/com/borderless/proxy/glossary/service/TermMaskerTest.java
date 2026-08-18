@@ -28,7 +28,7 @@ class TermMaskerTest {
     @Test
     @DisplayName("가장 긴 단어가 짧은 단어보다 먼저 마스킹되어 충돌을 방지")
     void maskText_LongestMatchFirst() {
-        Long teamId = 1L;
+        Long memberId = 1L;
         String originalText = "이번 프로젝트는 스프링부트와 스프링을 활용해 개발합니다.";
 
         // DB에서 조회될 데이터 생성
@@ -45,9 +45,9 @@ class TermMaskerTest {
                 .build();
 
         List<GlossaryTerm> mockTerms = new ArrayList<>(List.of(term1, term2));
-        given(glossaryTermRepository.findAllByMemberId(teamId)).willReturn(mockTerms);
+        given(glossaryTermRepository.findAllByMemberId(memberId)).willReturn(mockTerms);
 
-        MaskingResultDTO result = termMasker.maskText(teamId, originalText);
+        MaskingResultDTO result = termMasker.maskText(memberId, originalText);
 
         // "스프링부트"가 먼저 {TERM_02}로 바뀌고, 그 다음 "스프링"이 {TERM_01}로 바뀌었는지 확인
         assertThat(result.getMaskedText()).isEqualTo("이번 프로젝트는 {TERM_02}와 {TERM_01}을 활용해 개발합니다.");
