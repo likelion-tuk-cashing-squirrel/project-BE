@@ -69,16 +69,28 @@ jobs:
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+          OPENAI_DEFAULT_MODEL: ${{ secrets.OPENAI_DEFAULT_MODEL }}
+          DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
+          DEEPL_BASE_URL: ${{ secrets.DEEPL_BASE_URL }}
+          MORPHOLOGY_BASE_URL: ${{ secrets.MORPHOLOGY_BASE_URL }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: DB_URL,DB_USERNAME,DB_PASSWORD,KAKAO_CLIENT_ID
+          envs: DB_URL,DB_USERNAME,DB_PASSWORD,KAKAO_CLIENT_ID,OPENAI_API_KEY,OPENAI_BASE_URL,OPENAI_DEFAULT_MODEL,DEEPL_API_KEY,DEEPL_BASE_URL,MORPHOLOGY_BASE_URL
           script: |
             export DB_URL=$DB_URL
             export DB_USERNAME=$DB_USERNAME
             export DB_PASSWORD=$DB_PASSWORD
             export KAKAO_CLIENT_ID=$KAKAO_CLIENT_ID
+            export OPENAI_API_KEY=$OPENAI_API_KEY
+            export OPENAI_BASE_URL=$OPENAI_BASE_URL
+            export OPENAI_DEFAULT_MODEL=$OPENAI_DEFAULT_MODEL
+            export DEEPL_API_KEY=$DEEPL_API_KEY
+            export DEEPL_BASE_URL=$DEEPL_BASE_URL
+            export MORPHOLOGY_BASE_URL=$MORPHOLOGY_BASE_URL
             
             docker pull ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest
             docker pull ${{ secrets.DOCKER_USERNAME }}/borderless-fastapi:latest
@@ -89,7 +101,18 @@ jobs:
             else
               docker stop borderless-proxy || true
               docker rm borderless-proxy || true
-              docker run -d -p 8080:8080 -e DB_URL="$DB_URL" -e DB_USERNAME="$DB_USERNAME" -e DB_PASSWORD="$DB_PASSWORD" -e KAKAO_CLIENT_ID="$KAKAO_CLIENT_ID" --name borderless-proxy ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest
+              docker run -d -p 8080:8080 \
+                -e DB_URL="$DB_URL" \
+                -e DB_USERNAME="$DB_USERNAME" \
+                -e DB_PASSWORD="$DB_PASSWORD" \
+                -e KAKAO_CLIENT_ID="$KAKAO_CLIENT_ID" \
+                -e OPENAI_API_KEY="$OPENAI_API_KEY" \
+                -e OPENAI_BASE_URL="$OPENAI_BASE_URL" \
+                -e OPENAI_DEFAULT_MODEL="$OPENAI_DEFAULT_MODEL" \
+                -e DEEPL_API_KEY="$DEEPL_API_KEY" \
+                -e DEEPL_BASE_URL="$DEEPL_BASE_URL" \
+                -e MORPHOLOGY_BASE_URL="$MORPHOLOGY_BASE_URL" \
+                --name borderless-proxy ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest
 
               docker stop borderless-fastapi || true
               docker rm borderless-fastapi || true
