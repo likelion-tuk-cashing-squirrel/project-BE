@@ -48,27 +48,63 @@ class TestAffixBreakdown:
 
 
 class TestMaskedTokens:
-    def test_masked_token_is_skipped(self):
-        # get_stem("{TERM_01}")은 "{term_01}"을 돌려준다. 소문자로 바뀌면
-        # TermRestorer가 사전 키를 못 찾아 복원이 깨진다.
-        result = morphology.analyze("nagsulat ang {TERM_01}")
+    """GlossaryService가 만드는 실제 형식으로 검증한다.
+
+    실제 토큰은 "{TERM_" + UUID 앞 12자리 대문자 + "}" 이다. 예: {TERM_3F9A2B7C1D0E}
+    문서와 주석에 적힌 {TERM_01}만 보고 숫자 패턴으로 걸러내면 실제 값이 통과해버린다.
+    """
+
+    REAL_A = "{TERM_3F9A2B7C1D0E}"
+    REAL_B = "{TERM_88AA11BB22CC}"
+
+    def test_real_format_token_is_skipped(self):
+        result = morphology.analyze(f"nagsulat ang {self.REAL_A}")
 
         analyzed = [t.token for t in result.tokens]
-        assert "{TERM_01}" not in analyzed
-        assert "TERM_01" not in analyzed
-        assert "nagsulat" in analyzed
+        assert analyzed == ["nagsulat"]
 
-    def test_masked_token_never_appears_in_hint(self):
-        result = morphology.analyze("nagsulat ang {TERM_01} at {TERM_02}")
+    # 16진수 알파벳(A-F) 조각 중 tglstemmer가 접사로 오판하는 조합이 있다.
+    # 예: AABA -> aba + 접사 'a', BABABA -> baba + 접사 'ba'
+    # 토큰을 통째로 걸러내지 않으면 이런 조각이 힌트에 실려 프롬프트를 오염시킨다.
+    POLLUTING = "{TERM_AABA12BABABA}"
 
-        assert "TERM_01" not in result.hint
-        assert "term_01" not in result.hint
+    def test_hex_fragments_do_not_pollute_hint(self):
+        result = morphology.analyze(f"{self.POLLUTING} nagsulat")
 
-    def test_masked_token_only_text_produces_no_hint(self):
-        result = morphology.analyze("{TERM_01} {TERM_02}")
+        analyzed = [t.token for t in result.tokens]
+        assert analyzed == ["nagsulat"]
+        assert "aba" not in result.hint
+        assert "baba" not in result.hint
+
+    def test_token_containing_only_polluting_fragments_yields_no_hint(self):
+        result = morphology.analyze(self.POLLUTING)
 
         assert result.hint == ""
         assert result.tokens == []
+
+    def test_real_format_token_never_appears_in_hint(self):
+        result = morphology.analyze(f"nagsulat ang {self.REAL_A} at {self.REAL_B}")
+
+        assert "TERM" not in result.hint
+        assert "term" not in result.hint
+
+    @pytest.mark.parametrize("token", ["{TERM_01}", "{TERM_3F9A2B7C1D0E}", "{TERM_abc123}"])
+    def test_various_token_shapes_are_skipped(self, token):
+        result = morphology.analyze(f"nagsulat {token}")
+
+        assert [t.token for t in result.tokens] == ["nagsulat"]
+
+    def test_masked_token_only_text_produces_no_hint(self):
+        result = morphology.analyze(f"{self.REAL_A} {self.REAL_B}")
+
+        assert result.hint == ""
+        assert result.tokens == []
+
+    def test_text_is_returned_unchanged_with_real_tokens(self):
+        # 복원이 깨지지 않는 근거. 이 서비스는 텍스트를 건드리지 않는다.
+        text = f"nagsulat ang {self.REAL_A}"
+
+        assert morphology.analyze(text).text == text
 
 
 class TestNoiseReduction:

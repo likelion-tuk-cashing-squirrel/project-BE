@@ -17,16 +17,24 @@ from tglstemmer import stemmer
 
 # 용어집 마스킹 토큰. 이 패턴은 형태소 분석에서 제외한다.
 #
-# tglstemmer.get_stem("{TERM_01}")은 "{term_01}"을 돌려준다. 소문자로 바뀌면
-# TermRestorer가 사전 키를 찾지 못해 복원이 깨지고, 사용자에게 토큰이 그대로 노출된다.
-MASKED_TOKEN = re.compile(r"\{TERM_\d+\}")
+# GlossaryService.generateMaskedToken()이 만드는 실제 형식은
+# "{TERM_" + UUID 앞 12자리 대문자 + "}" 이다. 예: {TERM_3F9A2B7C1D0E}
+# 문서와 주석에는 {TERM_01}로 적혀 있지만 실제 값에는 알파벳이 섞인다.
+# 숫자만 매칭하면 실제 토큰이 걸러지지 않아 TERM, F, A 같은 조각으로 쪼개진다.
+# 영숫자를 모두 허용해 생성 규칙이 바뀌어도 버티게 한다.
+#
+# 제외하는 이유: tglstemmer.get_stem("{TERM_01}")은 "{term_01}"을 돌려준다.
+# 소문자로 바뀐 값이 힌트에 실리면 프롬프트가 오염되고, 모델이 그 형태를 따라 쓰면
+# TermRestorer가 사전 키를 찾지 못해 복원이 깨진다.
+MASKED_TOKEN = re.compile(r"\{TERM_[0-9A-Za-z]+\}")
 
 # 단어 추출 패턴. 마스킹 토큰을 하나의 덩어리로 먼저 잡아 쪼개지지 않게 한다.
+# 첫 번째 분기가 MASKED_TOKEN과 같은 형태여야 토큰이 통째로 잡힌다.
 #
 # nltk 기반 word_tokenize를 쓰지 않는 이유: punkt_tab 코퍼스를 런타임에 내려받아야 해서
 # 컨테이너에 네트워크와 쓰기 가능한 경로가 필요해진다. get_stem은 단어 단위로 동작하므로
 # 토큰화를 직접 하면 코퍼스 없이 완결된다.
-WORD = re.compile(r"\{TERM_\d+\}|[^\W\d_]+(?:[-'’][^\W\d_]+)*", re.UNICODE)
+WORD = re.compile(r"\{TERM_[0-9A-Za-z]+\}|[^\W\d_]+(?:[-'’][^\W\d_]+)*", re.UNICODE)
 
 
 @dataclass(frozen=True)
