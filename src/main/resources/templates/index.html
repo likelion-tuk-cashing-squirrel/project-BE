@@ -40,7 +40,9 @@
             const data = await response.json();
 
             outputTextEl.textContent = data.result ?? "결과가 비어 있습니다.";
-            updateSavings(data);
+
+            // 요청 1회 절약금 + 누적 토큰 반영
+            updateSavingsFromProxyResponse(data);
 
         } catch (e) {
             outputTextEl.textContent = e.message;
@@ -73,11 +75,11 @@
 
             if (!response.ok) throw new Error(await readError(response));
             const data = await response.json();
-            updateSavings(data);
+
+            // summary는 누적 토큰만 반영 (금액은 마지막 요청 기준 유지)
+            updateCumulativeTokensOnly(data);
         } catch (e) {
-            const amountEl = $("savingsAmount");
             const tokensEl = $("savingsTokens");
-            amountEl.textContent = "₩ 0";
             tokensEl.textContent = "절약된 누적 토큰: 0 Tokens";
         }
     }
@@ -142,22 +144,33 @@
         `).join("");
     }
 
-    function updateSavings(data) {
+    // /api/proxy 응답 기준: 요청 1회 절약금 + 누적 토큰
+    function updateSavingsFromProxyResponse(data) {
         const amountEl = $("savingsAmount");
         const tokensEl = $("savingsTokens");
 
-        const cumulativeSavedCost = data.cumulativeSavedCostUsd ?? 0;
-        const cumulativeSavedTokens = data.cumulativeSavedTokens ?? 0;
+        const savedCostUsd = Number(data.savedCostUsd ?? 0);
+        const cumulativeSavedTokens = Number(data.cumulativeSavedTokens ?? 0);
 
         const exchangeRate = 1400;
-        const won = Math.round(Number(cumulativeSavedCost) * exchangeRate);
+        const won = savedCostUsd * exchangeRate;
 
-        amountEl.textContent = `₩ ${formatNumber(won)}`;
+        amountEl.textContent = `₩ ${formatNumber(won, 2)}`;
         tokensEl.textContent = `절약된 누적 토큰: ${cumulativeSavedTokens} Tokens`;
     }
 
-    function formatNumber(value) {
-        return new Intl.NumberFormat("ko-KR").format(value);
+    // /api/proxy/summary 응답 기준: 누적 토큰만 갱신
+    function updateCumulativeTokensOnly(data) {
+        const tokensEl = $("savingsTokens");
+        const cumulativeSavedTokens = Number(data.cumulativeSavedTokens ?? 0);
+        tokensEl.textContent = `절약된 누적 토큰: ${cumulativeSavedTokens} Tokens`;
+    }
+
+    function formatNumber(value, fractionDigits = 0) {
+        return new Intl.NumberFormat("ko-KR", {
+            minimumFractionDigits: fractionDigits,
+            maximumFractionDigits: fractionDigits
+        }).format(value);
     }
 
     async function readError(response) {
@@ -235,12 +248,15 @@
         </div>
 
         <!-- 우측 하단: 절약 비용 표시 -->
+        <!-- 우측 하단: 절약 비용 표시 -->
         <div class="panel savings-panel">
             <h2>💰 실제 절약한 API 비용</h2>
             <p class="savings-desc">단어장 치환으로 줄인 토큰을 금액으로 환산했습니다.</p>
+
             <div id="savingsAmount" class="savings-amount">
-                ₩ 0
+                ₩ 0.00
             </div>
+
             <p id="savingsTokens" class="savings-tokens">절약된 누적 토큰: 0 Tokens</p>
         </div>
 
