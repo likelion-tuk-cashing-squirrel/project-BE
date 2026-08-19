@@ -19,6 +19,14 @@ public class ExternalApiException extends RuntimeException {
     public static final int NO_RESPONSE = 0;
 
     /**
+     * 성공 응답을 받았지만 본문이 규약과 다른 경우.
+     *
+     * <p>벤더가 아니라 그 앞단(게이트웨이·프록시)이나 스펙 변경이 원인일 수 있어 502로 표기한다.
+     * 상위 계층이 상태 코드만 보고도 "우리 요청 문제가 아니라 상대 응답 문제"로 구분할 수 있다.
+     */
+    public static final int MALFORMED_RESPONSE = 502;
+
+    /**
      * OpenAI가 크레딧 부족 시 돌려주는 에러 코드
      * 상태 코드는 레이트 리밋과 똑같이 429라서 code로만 구분
      */
@@ -54,6 +62,19 @@ public class ExternalApiException extends RuntimeException {
     public static ExternalApiException of(Vendor vendor, int statusCode, String errorCode, String message) {
         return new ExternalApiException(vendor, statusCode, errorCode,
                 isRetryable(statusCode, errorCode), message);
+    }
+
+    /**
+     * 2xx를 받았지만 본문이 비었거나 규약과 다를 때 사용한다.
+     *
+     * <p>클라이언트 경계에서 이 예외로 바꿔야 한다. 그러지 않으면 빈 {@code Mono}가 호출부까지
+     * 흘러가 {@code block()}이 {@code null}을 반환하고, 원인과 동떨어진 지점에서 NPE가 난다.
+     *
+     * <p><b>재시도하지 않는다.</b> 응답 형식이 규약과 다른 건 재시도로 달라질 문제가 아니고,
+     * LLM 호출은 재시도할 때마다 과금된다. 상태 코드가 5xx대라도 재시도 대상에서 제외한다.
+     */
+    public static ExternalApiException malformedResponse(Vendor vendor, String message) {
+        return new ExternalApiException(vendor, MALFORMED_RESPONSE, null, false, message);
     }
 
     public static ExternalApiException timeout(Vendor vendor, Duration timeout) {

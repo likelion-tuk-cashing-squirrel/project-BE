@@ -65,7 +65,10 @@ public class OpenAiLlmClient implements LlmClient {
                             .onStatus(HttpStatusCode::isError, this::toException)
                             .bodyToMono(OpenAiChatResponse.class)
                             .timeout(properties.getTimeout())
-                            .map(response -> response.toLlmResponse(elapsedMs(startedAt)));
+                            // 2xx인데 본문이 없으면 빈 Mono가 된다. 그대로 두면 호출부의 block()이 null을 받는다.
+                            .switchIfEmpty(Mono.error(() -> ExternalApiException.malformedResponse(
+                                    Vendor.OPENAI, "응답 본문이 비어 있습니다.")))
+                            .map(response -> toLlmResponse(response, elapsedMs(startedAt)));
                 })
                 .onErrorMap(TimeoutException.class,
                         e -> ExternalApiException.timeout(Vendor.OPENAI, properties.getTimeout()))
@@ -73,6 +76,21 @@ public class OpenAiLlmClient implements LlmClient {
                         e -> ExternalApiException.network(Vendor.OPENAI, e))
                 .retryWhen(retrySpec())
                 .doOnError(ExternalApiException.class, this::logError);
+    }
+
+    /**
+     * 응답을 내부 DTO로 변환한다. 변환 전에 본문 유무를 확인한다.
+     *
+     * <p>{@code choices}가 비어 있거나 {@code message.content}가 없으면 {@code LlmResponse.content}가
+     * {@code null}이 된다. 그 상태로 반환하면 호출부가 그걸 그대로 다음 단계에 넘겨서, 원인과 먼 곳에서
+     * 문제가 드러난다. 예를 들어 오케스트레이터는 재번역이나 복원 단계에서 NPE를 낸다.
+     */
+    private LlmResponse toLlmResponse(OpenAiChatResponse response, int latencyMs) {
+        if (response.isEmpty()) {
+            throw ExternalApiException.malformedResponse(
+                    Vendor.OPENAI, "응답에 생성된 본문이 없습니다. choices 또는 message.content가 비어 있습니다.");
+        }
+        return response.toLlmResponse(latencyMs);
     }
 
     /** 필수 설정값 검증. 누락 시 네트워크로 나가기 전에 차단 */

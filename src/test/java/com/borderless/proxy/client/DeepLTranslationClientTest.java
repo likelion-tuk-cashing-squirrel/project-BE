@@ -203,4 +203,75 @@ class DeepLTranslationClientTest {
         assertThat(freeKeyWithProUrl.isEndpointMismatched()).isTrue();
         assertThat(freeKeyWithProUrl.recommendedBaseUrl()).isEqualTo(DeepLProperties.FREE_BASE_URL);
     }
+
+    // ---------------------------------------------------------------------
+    // 2xx 응답의 규약 위반 (#47)
+    // 빈 Mono나 null이 호출부로 새어나가면 원인과 동떨어진 지점에서 NPE가 난다.
+    // ---------------------------------------------------------------------
+
+    @Test
+    @DisplayName("200인데 본문이 비어 있으면 예외로 알린다")
+    void emptyBodyFails() {
+        enqueue(200, "");
+
+        assertThatThrownBy(() -> client.translate(TranslationRequest.of("안녕", "EN")).block())
+                .isInstanceOf(ExternalApiException.class)
+                .hasMessageContaining("본문이 비어 있습니다");
+    }
+
+    @Test
+    @DisplayName("translations가 빈 배열이면 예외로 알린다")
+    void emptyTranslationsFails() {
+        enqueue(200, "{\"translations\":[]}");
+
+        // 그냥 두면 getFirstText()가 null을 반환해 다음 단계에서 터진다.
+        assertThatThrownBy(() -> client.translate(TranslationRequest.of("안녕", "EN")).block())
+                .isInstanceOf(ExternalApiException.class)
+                .hasMessageContaining("1건")
+                .hasMessageContaining("0건");
+    }
+
+    @Test
+    @DisplayName("요청한 문장 수와 결과 수가 다르면 예외로 알린다")
+    void countMismatchFails() {
+        enqueue(200, SUCCESS_BODY); // 결과 1건
+
+        // TranslationResponse는 요청 texts와 순서·개수가 1:1이라는 계약을 전제로 한다.
+        assertThatThrownBy(() -> client.translate(TranslationRequest.builder()
+                .texts(List.of("첫째", "둘째"))
+                .targetLang("EN")
+                .build()).block())
+                .isInstanceOf(ExternalApiException.class)
+                .hasMessageContaining("2건")
+                .hasMessageContaining("1건");
+    }
+
+    @Test
+    @DisplayName("결과 항목에 text가 없으면 예외로 알린다")
+    void nullTextFails() {
+        enqueue(200, """
+                {
+                  "translations": [
+                    { "detected_source_language": "KO", "billed_characters": 5 }
+                  ]
+                }
+                """);
+
+        assertThatThrownBy(() -> client.translate(TranslationRequest.of("안녕", "EN")).block())
+                .isInstanceOf(ExternalApiException.class)
+                .hasMessageContaining("text가 없습니다");
+    }
+
+    @Test
+    @DisplayName("규약 위반은 재시도하지 않는다")
+    void malformedResponseIsNotRetried() {
+        enqueue(200, "{\"translations\":[]}");
+
+        assertThatThrownBy(() -> client.translate(TranslationRequest.of("안녕", "EN")).block())
+                .isInstanceOf(ExternalApiException.class)
+                .satisfies(e -> assertThat(((ExternalApiException) e).isRetryable()).isFalse());
+
+        // 상태 코드가 502로 표기되지만 재시도 대상이 아니다. 재시도해도 형식이 달라지지 않는다.
+        assertThat(server.getRequestCount()).isEqualTo(1);
+    }
 }
