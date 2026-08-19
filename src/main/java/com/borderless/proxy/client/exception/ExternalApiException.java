@@ -127,6 +127,9 @@ public class ExternalApiException extends RuntimeException {
     }
 
     public enum Vendor {
-        OPENAI, DEEPL
+        OPENAI,
+        DEEPL,
+        /** 형태소 분석 사이드카(FastAPI). 외부 벤더는 아니지만 별도 프로세스라 같이 다룬다. */
+        MORPHOLOGY
     }
 }
