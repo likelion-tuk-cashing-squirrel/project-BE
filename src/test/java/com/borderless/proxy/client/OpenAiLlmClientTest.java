@@ -254,4 +254,69 @@ class OpenAiLlmClientTest {
 
         assertThat(server.getRequestCount()).isZero();
     }
+
+    // ---------------------------------------------------------------------
+    // 2xx 응답의 규약 위반 (#47)
+    // 빈 Mono나 content=null이 호출부로 새어나가면 원인과 동떨어진 지점에서 NPE가 난다.
+    // ---------------------------------------------------------------------
+
+    @Test
+    @DisplayName("200인데 본문이 비어 있으면 예외로 알린다")
+    void emptyBodyFails() {
+        enqueue(200, "");
+
+        // 그냥 두면 complete()가 빈 Mono를 반환해 호출부의 block()이 null을 받는다.
+        assertThatThrownBy(() -> client.complete(LlmRequest.of("안녕")).block())
+                .isInstanceOf(ExternalApiException.class)
+                .hasMessageContaining("본문이 비어 있습니다");
+    }
+
+    @Test
+    @DisplayName("choices가 빈 배열이면 예외로 알린다")
+    void emptyChoicesFails() {
+        enqueue(200, """
+                {
+                  "id": "chatcmpl-abc123",
+                  "model": "gpt-4.1-mini-2025-04-14",
+                  "choices": [],
+                  "usage": { "prompt_tokens": 10, "completion_tokens": 0, "total_tokens": 10 }
+                }
+                """);
+
+        assertThatThrownBy(() -> client.complete(LlmRequest.of("안녕")).block())
+                .isInstanceOf(ExternalApiException.class)
+                .hasMessageContaining("생성된 본문이 없습니다");
+    }
+
+    @Test
+    @DisplayName("message.content가 없으면 예외로 알린다")
+    void nullContentFails() {
+        enqueue(200, """
+                {
+                  "id": "chatcmpl-abc123",
+                  "model": "gpt-4.1-mini-2025-04-14",
+                  "choices": [
+                    { "index": 0, "message": { "role": "assistant" }, "finish_reason": "stop" }
+                  ],
+                  "usage": { "prompt_tokens": 10, "completion_tokens": 0, "total_tokens": 10 }
+                }
+                """);
+
+        assertThatThrownBy(() -> client.complete(LlmRequest.of("안녕")).block())
+                .isInstanceOf(ExternalApiException.class)
+                .hasMessageContaining("생성된 본문이 없습니다");
+    }
+
+    @Test
+    @DisplayName("규약 위반은 재시도하지 않는다")
+    void malformedResponseIsNotRetried() {
+        enqueue(200, "{\"choices\":[]}");
+
+        assertThatThrownBy(() -> client.complete(LlmRequest.of("안녕")).block())
+                .isInstanceOf(ExternalApiException.class)
+                .satisfies(e -> assertThat(((ExternalApiException) e).isRetryable()).isFalse());
+
+        // LLM 호출은 재시도할 때마다 과금된다. 형식 문제로 재호출하면 돈만 나간다.
+        assertThat(server.getRequestCount()).isEqualTo(1);
+    }
 }

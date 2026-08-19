@@ -62,7 +62,11 @@ public class DeepLTranslationClient implements TranslationClient {
                             .onStatus(HttpStatusCode::isError, this::toException)
                             .bodyToMono(DeepLTranslateResponse.class)
                             .timeout(properties.getTimeout())
-                            .map(response -> response.toTranslationResponse(elapsedMs(startedAt)));
+                            // 2xx인데 본문이 없으면 빈 Mono가 된다. 그대로 두면 호출부의 block()이 null을 받는다.
+                            .switchIfEmpty(Mono.error(() -> ExternalApiException.malformedResponse(
+                                    Vendor.DEEPL, "응답 본문이 비어 있습니다.")))
+                            .map(response -> toTranslationResponse(
+                                    response, request.getTexts().size(), elapsedMs(startedAt)));
                 })
                 .onErrorMap(TimeoutException.class,
                         e -> ExternalApiException.timeout(Vendor.DEEPL, properties.getTimeout()))
@@ -70,6 +74,39 @@ public class DeepLTranslationClient implements TranslationClient {
                         e -> ExternalApiException.network(Vendor.DEEPL, e))
                 .retryWhen(retrySpec())
                 .doOnError(ExternalApiException.class, this::logError);
+    }
+
+    /**
+     * 응답을 내부 DTO로 변환한다. 변환 전에 요청과 1:1로 대응하는지 확인한다.
+     *
+     * <p>{@code TranslationResponse}는 요청 {@code texts}와 순서·개수가 같다는 계약을 전제로
+     * {@code getFirstText()}, {@code getTexts()}를 제공한다. 개수가 어긋나면 호출부는 엉뚱한 문장을
+     * 집거나 {@code null}을 받는다. 특히 결과가 0건이면 {@code getFirstText()}가 {@code null}을 반환해
+     * 다음 단계에서 NPE가 난다.
+     *
+     * @param expectedCount 요청에 담아 보낸 텍스트 개수
+     */
+    private TranslationResponse toTranslationResponse(DeepLTranslateResponse response,
+                                                      int expectedCount,
+                                                      int latencyMs) {
+        TranslationResponse translated = response.toTranslationResponse(latencyMs);
+        int actualCount = translated.getTranslations().size();
+
+        if (actualCount != expectedCount) {
+            throw ExternalApiException.malformedResponse(Vendor.DEEPL,
+                    "요청 텍스트 %d건에 대해 번역 결과가 %d건입니다. 순서 대응이 깨졌습니다."
+                            .formatted(expectedCount, actualCount));
+        }
+
+        // 개수가 맞아도 text가 null이면 복원·재번역 단계에서 터진다. 여기서 걸러낸다.
+        for (int i = 0; i < actualCount; i++) {
+            if (translated.getTranslations().get(i).getText() == null) {
+                throw ExternalApiException.malformedResponse(Vendor.DEEPL,
+                        "번역 결과 %d번째 항목에 text가 없습니다.".formatted(i));
+            }
+        }
+
+        return translated;
     }
 
     private Mono<? extends Throwable> toException(ClientResponse response) {
