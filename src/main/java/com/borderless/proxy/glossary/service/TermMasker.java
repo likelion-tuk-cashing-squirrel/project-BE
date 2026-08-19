@@ -18,9 +18,9 @@ public class TermMasker {
 
     private final GlossaryTermRepository glossaryTermRepository;
 
-    public MaskingResultDTO maskText(Long teamId, String originalText) {
+    public MaskingResultDTO maskText(Long memberId, String originalText) {
 
-        List<GlossaryTerm> terms = glossaryTermRepository.findAllByTeamId(teamId);
+        List<GlossaryTerm> terms = glossaryTermRepository.findAllByMemberId(memberId);
 
         terms.sort((t1, t2) -> t2.getSourceTerm().length() - t1.getSourceTerm().length());
 
