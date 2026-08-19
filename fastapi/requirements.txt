@@ -1,2 +1,7 @@
 fastapi==0.115.12
 uvicorn[standard]==0.34.2
+
+# 타갈로그 형태소 분석 (STEP 03-B). MIT, Python 3.10+
+# 전이 의존성으로 nltk가 따라오지만 코퍼스는 쓰지 않는다.
+# app/morphology.py가 토큰화를 직접 하므로 punkt_tab 다운로드 단계가 필요 없다.
+tglstemmer==0.1.1
