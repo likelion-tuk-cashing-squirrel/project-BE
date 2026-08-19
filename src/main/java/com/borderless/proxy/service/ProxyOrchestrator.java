@@ -1,10 +1,19 @@
 package com.borderless.proxy.service;
 
+import com.borderless.proxy.client.LlmClient;
+import com.borderless.proxy.client.TranslationClient;
+import com.borderless.proxy.client.dto.LlmRequest;
+import com.borderless.proxy.client.dto.LlmResponse;
+import com.borderless.proxy.client.dto.TranslationRequest;
+import com.borderless.proxy.client.dto.TranslationResponse;
 import com.borderless.proxy.dto.ProxyRequestDto;
 import com.borderless.proxy.dto.ProxyResponseDto;
 import com.borderless.proxy.glossary.dto.MaskingResultDTO;
 import com.borderless.proxy.glossary.service.TermMasker;
 import com.borderless.proxy.glossary.service.TermRestorer;
+import com.borderless.proxy.routing.RoutingTier;
+import com.borderless.proxy.routing.dto.RoutingResult;
+import com.borderless.proxy.routing.CostRouter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -13,46 +22,69 @@ import org.springframework.stereotype.Service;
 public class ProxyOrchestrator {
 
     // 셰프가 부릴 담당자들 (스프링이 자동으로 넣어줌)
-    private final TermMasker termMasker;
-    private final TermRestorer termRestorer;
+    private final CostRouter costRouter;             // 라우팅 판별
+    private final TermMasker termMasker;             // 마스킹
+    private final TermRestorer termRestorer;         // 복원
+    private final TranslationClient translationClient; // 번역
+    private final LlmClient llmClient;               // LLM 호출
 
     // 손님 주문(요청)이 들어오면 이 함수가 전체 흐름을 지휘한다
-    public ProxyResponseDto process(ProxyRequestDto request) {
+    public ProxyResponseDto process(ProxyRequestDto request, Long memberId) {
 
         // 손님이 입력한 원본 텍스트
         String originalText = request.getText();
 
-        // 팀 번호 (지금은 임시로 1번 팀으로 고정. 나중에 로그인 정보에서 가져올 예정)
-        Long teamId = 1L;
-
         // ===== 1. 라우팅 판별 =====
-        // TODO: 라우팅(CostRouter) 담당 코드가 develop에 병합되면 여기 연결
-        //       한국어 직행(Direct)인지 영어 피벗(Pivot)인지 결정
+        // 텍스트를 보고 어떤 처리 경로(티어)로 갈지 결정한다
+        RoutingResult routing = costRouter.route(originalText);
+        RoutingTier tier = routing.tier();
+
+        // 파이프라인을 거치며 텍스트가 계속 바뀐다. 처음엔 원본으로 시작.
+        String currentText = originalText;
+        // 복원할 때 쓸 사전 (마스킹을 안 하면 비어 있음)
+        java.util.Map<String, String> dictionary = java.util.Map.of();
 
         // ===== 2. 마스킹 =====
-        // 고유명사를 {TERM_01} 같은 토큰으로 가린다
-        MaskingResultDTO masked = termMasker.maskText(teamId, originalText);
-        String maskedText = masked.getMaskedText();       // 가려진 텍스트
-        var dictionary = masked.getDictionary();          // 나중에 되돌릴 사전
+        // 이 티어가 마스킹이 필요할 때만 수행 (고유명사를 토큰으로 가림)
+        if (tier.requiresMasking()) {
+            MaskingResultDTO masked = termMasker.maskText(memberId, currentText);
+            currentText = masked.getMaskedText();
+            dictionary = masked.getDictionary();
+        }
 
-        // ===== 3. 번역 =====
-        // TODO: 번역(TranslationClient) 담당 코드가 병합되면 여기 연결
-        //       (피벗일 때만 영어로 번역)
+        // ===== 3. 피벗 번역 (원어 -> 영어) =====
+        // 피벗이 필요한 티어(베트남어/타갈로그 등)일 때만 영어로 번역
+        if (tier.requiresPivot()) {
+            TranslationRequest toEnglish = TranslationRequest.of(currentText, "EN");
+            TranslationResponse translated = translationClient.translate(toEnglish).block();
+            currentText = translated.getFirstText();
+        }
 
         // ===== 4. LLM 호출 =====
-        // TODO: LLM(LlmClient) 담당 코드가 병합되면 여기 연결
-        //       지금은 임시로 마스킹된 텍스트를 그대로 결과처럼 사용
-        String llmResult = maskedText;
+        // 영어로 변환된(또는 원래 영어인) 텍스트를 LLM에 넣는다
+        LlmRequest llmRequest = LlmRequest.of(currentText);
+        LlmResponse llmResponse = llmClient.complete(llmRequest).block();
+        currentText = llmResponse.getContent();
+        int usedTokens = llmResponse.getUsage().getTotalTokens();
 
-        // ===== 5. 마스킹 복원 =====
+        // ===== 5. 원어 재번역 (영어 -> 원어) =====
+        // 피벗했던 경우에만, LLM 영어 답변을 다시 원래 언어로 되돌린다
+        if (tier.requiresRetranslation()) {
+            String targetLang = routing.detectedLanguage();
+            TranslationRequest toOriginal = TranslationRequest.of(currentText, targetLang);
+            TranslationResponse retranslated = translationClient.translate(toOriginal).block();
+            currentText = retranslated.getFirstText();
+        }
+
+        // ===== 6. 마스킹 복원 =====
         // 가렸던 토큰을 다시 원래 단어로 되돌린다
-        String finalResult = termRestorer.restoreText(llmResult, dictionary);
+        String finalResult = termRestorer.restoreText(currentText, dictionary);
 
         // ===== 최종 응답 만들기 =====
         return ProxyResponseDto.builder()
-                .result(finalResult)   // 최종 결과 텍스트
-                .usedTokens(0)         // TODO: 라우팅 연결되면 실제 토큰 수 넣기
-                .pivoted(false)        // TODO: 라우팅 연결되면 실제 피벗 여부 넣기
+                .result(finalResult)              // 최종 결과 텍스트
+                .usedTokens(usedTokens)           // 실제 토큰 수
+                .pivoted(tier.requiresPivot())    // 실제 피벗 여부
                 .build();
     }
 }
