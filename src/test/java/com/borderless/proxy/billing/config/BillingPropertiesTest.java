@@ -89,6 +89,32 @@ class BillingPropertiesTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("billing.models");
         }
+
+        @ParameterizedTest
+        @ValueSource(strings = {"gpt-4o-mini-2024-07-18", "GPT-4o-Mini-2025-04-14"})
+        @DisplayName("스냅샷 날짜가 붙은 이름도 별칭 단가로 조회한다")
+        void lookupStripsSnapshotSuffix(String snapshotName) {
+            // OpenAI는 별칭으로 요청해도 응답 model 필드에 스냅샷 이름을 돌려준다.
+            // 이걸 못 찾으면 모든 요청의 비용 계산이 실패한다.
+            assertThat(properties.pricingFor(snapshotName).inputPerMillion()).isEqualByComparingTo("0.15");
+        }
+
+        @Test
+        @DisplayName("등록되지 않은 모델은 스냅샷을 떼도 찾을 수 없으면 예외로 알린다")
+        void unknownModelStillThrowsAfterStripping() {
+            // 기본 단가로 조용히 폴백하면 틀린 금액이 로그 없이 정산에 쌓인다.
+            assertThatThrownBy(() -> properties.pricingFor("gpt-5-nano-2025-08-07"))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("gpt-5-nano-2025-08-07");
+        }
+
+        @Test
+        @DisplayName("날짜 형식이 아닌 접미사는 떼지 않는다")
+        void doesNotStripNonDateSuffix() {
+            // gpt-4o-mini-search-preview는 별개 모델이고 단가도 다르다. 별칭으로 뭉개면 안 된다.
+            assertThatThrownBy(() -> properties.pricingFor("gpt-4o-mini-search-preview"))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
     }
 
     @Nested
