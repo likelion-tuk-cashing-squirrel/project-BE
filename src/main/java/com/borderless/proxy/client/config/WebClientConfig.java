@@ -19,7 +19,8 @@ import reactor.core.publisher.Mono;
  */
 @Slf4j
 @Configuration
-@EnableConfigurationProperties({OpenAiProperties.class, DeepLProperties.class})
+@EnableConfigurationProperties({
+        OpenAiProperties.class, DeepLProperties.class, MorphologyProperties.class})
 public class WebClientConfig {
 
     /** LLM 응답이 커질 수 있으므로 기본 256KB보다 넉넉히 설정 */
@@ -45,6 +46,25 @@ public class WebClientConfig {
         return baseBuilder(properties.getBaseUrl(), "DeepL")
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "DeepL-Auth-Key " + properties.getApiKey())
                 .build();
+    }
+
+    /**
+     * 형태소 사이드카용 WebClient.
+     *
+     * <p>같은 호스트의 컨테이너로 뜨므로 인증 헤더가 없다. 외부에 노출하려면 인증을 붙여야 한다.
+     * baseUrl이 비어 있어도 부팅은 허용한다. TIER_3 요청이 아니면 호출되지 않고,
+     * 호출돼도 {@code optional} 설정에 따라 힌트 없이 진행한다.
+     */
+    @Bean
+    public WebClient morphologyWebClient(MorphologyProperties properties) {
+        if (properties.getBaseUrl() == null || properties.getBaseUrl().isBlank()) {
+            log.warn("MORPHOLOGY_BASE_URL 이 설정되지 않았습니다. "
+                    + "TIER_3(타갈로그) 요청은 형태소 힌트 없이 처리됩니다.");
+            // baseUrl 없이 build()하면 요청 시점에 IllegalArgumentException이 난다.
+            // 클라이언트가 baseUrl 공백을 먼저 검사하므로 여기까지 오지 않지만, 빌드는 되게 둔다.
+            return baseBuilder("http://localhost:8000", "Morphology").build();
+        }
+        return baseBuilder(properties.getBaseUrl(), "Morphology").build();
     }
 
     private WebClient.Builder baseBuilder(String baseUrl, String vendor) {

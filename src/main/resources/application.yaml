@@ -65,6 +65,16 @@ app:
     timeout: 10s
     max-retries: 2
 
+  # 형태소 분석 사이드카(FastAPI). TIER_3(타갈로그)에서만 호출한다.
+  # 타갈로그 형태소 분석기가 Python에만 있어 별도 프로세스로 분리했다.
+  morphology:
+    # EC2에서는 같은 호스트의 컨테이너(8000)로 뜬다. 비어 있으면 힌트 없이 진행한다.
+    base-url: ${MORPHOLOGY_BASE_URL:}
+    # 번역·LLM보다 짧게 잡는다. 힌트는 보조 정보라 여기서 오래 붙잡히면 손해다.
+    timeout: 3s
+    # 사이드카 장애를 서비스 전체 장애로 번지게 하지 않는다. 힌트 없이 통과시킨다.
+    optional: true
+
 logging:
   level:
     com.borderless.proxy.client: DEBUG
