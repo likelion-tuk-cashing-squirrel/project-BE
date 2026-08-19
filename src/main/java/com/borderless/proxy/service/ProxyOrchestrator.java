@@ -1,5 +1,7 @@
 package com.borderless.proxy.service;
 
+import com.borderless.proxy.billing.TokenSavingsCalculator;
+import com.borderless.proxy.billing.service.UsageSummaryService;
 import com.borderless.proxy.client.LlmClient;
 import com.borderless.proxy.client.TranslationClient;
 import com.borderless.proxy.client.dto.LlmRequest;
@@ -7,15 +9,17 @@ import com.borderless.proxy.client.dto.LlmResponse;
 import com.borderless.proxy.client.dto.TranslationRequest;
 import com.borderless.proxy.client.dto.TranslationResponse;
 import com.borderless.proxy.dto.ProxyRequestDto;
-import com.borderless.proxy.dto.ProxyResponseDto;
 import com.borderless.proxy.glossary.dto.MaskingResultDTO;
 import com.borderless.proxy.glossary.service.TermMasker;
 import com.borderless.proxy.glossary.service.TermRestorer;
+import com.borderless.proxy.proxy.dto.ProxyResponseDTO;
 import com.borderless.proxy.routing.CostRouter;
 import com.borderless.proxy.routing.RoutingTier;
 import com.borderless.proxy.routing.dto.RoutingResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.math.BigDecimal;
 
 @Service
 @RequiredArgsConstructor
@@ -27,9 +31,11 @@ public class ProxyOrchestrator {
     private final TermRestorer termRestorer;         // 복원
     private final TranslationClient translationClient; // 번역
     private final LlmClient llmClient;               // LLM 호출
+    private final TokenSavingsCalculator tokenSavingsCalculator;
+    private final UsageSummaryService usageSummaryService;
 
     // 손님 주문(요청)이 들어오면 이 함수가 전체 흐름을 지휘한다
-    public ProxyResponseDto process(ProxyRequestDto request, Long memberId) {
+    public ProxyResponseDTO process(ProxyRequestDto request, Long memberId) {
 
         // 손님이 입력한 원본 텍스트
         String originalText = request.getText();
@@ -80,11 +86,26 @@ public class ProxyOrchestrator {
         // 가렸던 토큰을 다시 원래 단어로 되돌린다
         String finalResult = termRestorer.restoreText(currentText, dictionary);
 
-        // ===== 최종 응답 만들기 =====
-        return ProxyResponseDto.builder()
-                .result(finalResult)              // 최종 결과 텍스트
-                .usedTokens(usedTokens)           // 실제 토큰 수
-                .pivoted(tier.requiresPivot())    // 실제 피벗 여부
+        // 이번 요청 절약량 계산
+        int savedTokens = 0;
+        BigDecimal savedCostUsd = BigDecimal.ZERO;
+
+        if (tier.requiresMasking() || tier.requiresPivot()) {
+            savedTokens = Math.max(0, originalText.length() / 3);
+            savedCostUsd = BigDecimal.valueOf(savedTokens * 0.0001);
+        }
+
+        long cumulativeSavedTokens = usageSummaryService.getCumulativeSavedTokens(memberId);
+        BigDecimal cumulativeSavedCostUsd = usageSummaryService.getCumulativeSavedCostUsd(memberId);
+
+        return ProxyResponseDTO.builder()
+                .result(finalResult)
+                .usedTokens(usedTokens)
+                .pivoted(tier.requiresPivot())
+                .savedTokens(savedTokens)
+                .savedCostUsd(savedCostUsd)
+                .cumulativeSavedTokens(cumulativeSavedTokens)
+                .cumulativeSavedCostUsd(cumulativeSavedCostUsd)
                 .build();
     }
 }

@@ -14,6 +14,7 @@
 
     document.addEventListener("DOMContentLoaded", () => {
         loadGlossaryTerms();
+        loadSavingsSummary();
     });
 
     async function sendTranslationRequest() {
@@ -37,7 +38,10 @@
 
             if (!response.ok) throw new Error(await readError(response));
             const data = await response.json();
+
             outputTextEl.textContent = data.result ?? "결과가 비어 있습니다.";
+            updateSavings(data);
+
         } catch (e) {
             outputTextEl.textContent = e.message;
         }
@@ -57,6 +61,24 @@
             renderGlossaryTerms(terms);
         } catch (e) {
             wordListEl.innerHTML = `<li class="word-item">${escapeHtml(e.message)}</li>`;
+        }
+    }
+
+    async function loadSavingsSummary() {
+        try {
+            const response = await fetch("/api/proxy/summary", {
+                method: "GET",
+                credentials: "include"
+            });
+
+            if (!response.ok) throw new Error(await readError(response));
+            const data = await response.json();
+            updateSavings(data);
+        } catch (e) {
+            const amountEl = $("savingsAmount");
+            const tokensEl = $("savingsTokens");
+            amountEl.textContent = "₩ 0";
+            tokensEl.textContent = "절약된 누적 토큰: 0 Tokens";
         }
     }
 
@@ -118,6 +140,24 @@
                 <button class="btn-delete" type="button" onclick="deleteGlossaryTerm(${term.id})">삭제</button>
             </li>
         `).join("");
+    }
+
+    function updateSavings(data) {
+        const amountEl = $("savingsAmount");
+        const tokensEl = $("savingsTokens");
+
+        const cumulativeSavedCost = data.cumulativeSavedCostUsd ?? 0;
+        const cumulativeSavedTokens = data.cumulativeSavedTokens ?? 0;
+
+        const exchangeRate = 1400;
+        const won = Math.round(Number(cumulativeSavedCost) * exchangeRate);
+
+        amountEl.textContent = `₩ ${formatNumber(won)}`;
+        tokensEl.textContent = `절약된 누적 토큰: ${cumulativeSavedTokens} Tokens`;
+    }
+
+    function formatNumber(value) {
+        return new Intl.NumberFormat("ko-KR").format(value);
     }
 
     async function readError(response) {
@@ -198,10 +238,10 @@
         <div class="panel savings-panel">
             <h2>💰 실제 절약한 API 비용</h2>
             <p class="savings-desc">단어장 치환으로 줄인 토큰을 금액으로 환산했습니다.</p>
-            <div class="savings-amount">
-                ₩ 12,450
+            <div id="savingsAmount" class="savings-amount">
+                ₩ 0
             </div>
-            <p class="savings-tokens">절약된 누적 토큰: 4,150 Tokens</p>
+            <p id="savingsTokens" class="savings-tokens">절약된 누적 토큰: 0 Tokens</p>
         </div>
 
     </div>
