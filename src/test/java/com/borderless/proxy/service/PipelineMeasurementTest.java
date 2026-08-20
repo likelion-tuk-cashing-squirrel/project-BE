@@ -129,6 +129,12 @@ class PipelineMeasurementTest {
                     kliyente upang mapanatili naming mababa sa labinlimang minuto ang downtime sa \
                     maintenance window ngayong katapusan ng linggo."""));
 
+    /** PK 기반 신 형식. 프롬프트 길이 A/B는 이 형식으로 준수율을 본다. */
+    private static final String NEW_FORMAT_TOKEN = "{TERM_1}";
+
+    /** 준수율은 1회로 판단할 수 없다. LLM 응답이 확률적이라 반복이 필요하다. */
+    private static final int REPS = 3;
+
     private static final List<Result> RESULTS = new ArrayList<>();
 
     private final TokenCalculator tokenCalculator = new TokenCalculator();
@@ -293,6 +299,89 @@ class PipelineMeasurementTest {
                 label, withHint, withoutHint,
                 (withHint - withoutHint > 0 ? "+" : "") + (withHint - withoutHint));
     }
+
+    /**
+     * 시스템 프롬프트를 줄여도 지시가 지켜지는지 확인한다.
+     *
+     * <p>줄여야 하는 이유는 비용이다. 실측에서 지시문 전체(57 토큰)가 영어 피벗으로 아낀
+     * 본문 토큰(26)보다 커서 입력 쪽 절감이 마이너스였다. 지시문을 줄이면 부호가 뒤집힌다.
+     *
+     * <p>대신 지시가 안 지켜지면 두 가지가 깨진다. 그래서 <b>비용이 아니라 준수율을 본다.</b>
+     * <ul>
+     *   <li>토큰 보존 실패 → {@code TermRestorer}가 복원하지 못해 사용자 화면에 {@code {TERM_n}} 노출</li>
+     *   <li>영어 응답 실패 → 재번역이 같은 언어를 두 번 번역, 출력 절감 지표도 망가짐</li>
+     * </ul>
+     *
+     * <p>번역은 한 번만 하고 결과를 모든 변형에 재사용한다. 변형마다 번역하면 본문이 미세하게
+     * 달라져 프롬프트 효과와 번역 변동이 섞인다.
+     */
+    @Test
+    @DisplayName("시스템 프롬프트 길이별 지시 준수율을 비교한다")
+    void compareSystemPromptLength() throws IOException {
+        OpenAiProperties openAi = openAiProperties();
+        OpenAiLlmClient llmClient = new OpenAiLlmClient(openAiWebClient(openAi), openAi);
+        LanguageDetector detector = new LanguageDetector();
+
+        // 마스킹된 원어 텍스트를 영어로 한 번만 피벗한다.
+        String maskedTagalog = SCENARIOS.get(3).text()
+                .replace("Plataporma Sigasig", NEW_FORMAT_TOKEN);
+        String pivoted = new DeepLTranslationClient(deepLWebClient(), deepLProperties())
+                .translate(com.borderless.proxy.client.dto.TranslationRequest.of(maskedTagalog, "TL", "EN"))
+                .block()
+                .getFirstText();
+
+        List<PromptVariant> variants = List.of(
+                new PromptVariant("긴 지시문 (이전)",
+                        "Respond in English only, even if the request contains text in another language."
+                                + "\nReproduce these placeholders exactly as they appear, character for character. "
+                                + "Do not translate, expand, explain, or reformat them: " + NEW_FORMAT_TOKEN),
+                new PromptVariant("짧은 지시문 (현재)",
+                        "Answer in English only.\nKeep verbatim: " + NEW_FORMAT_TOKEN),
+                new PromptVariant("토큰 보존만",
+                        "Keep verbatim: " + NEW_FORMAT_TOKEN),
+                new PromptVariant("지시문 없음", ""));
+
+        StringBuilder out = new StringBuilder("# 시스템 프롬프트 길이별 지시 준수율\n\n");
+        out.append("피벗된 본문(모든 변형 공통)\n\n```\n").append(pivoted).append("\n```\n\n");
+        out.append("| 변형 | 프롬프트 토큰 | 보고 입력 토큰 | 토큰 보존 | 영어 응답 |\n|---|---|---|---|---|\n");
+
+        for (PromptVariant variant : variants) {
+            int tokenKept = 0;
+            int english = 0;
+            int reportedInput = 0;
+
+            for (int i = 0; i < REPS; i++) {
+                LlmRequest request = variant.prompt().isEmpty()
+                        ? LlmRequest.of(pivoted)
+                        : LlmRequest.of(variant.prompt(), pivoted);
+
+                LlmResponse response = llmClient.complete(request).block();
+                String content = response.getContent();
+
+                reportedInput = response.getUsage().getPromptTokens();
+                if (content.contains(NEW_FORMAT_TOKEN)) {
+                    tokenKept++;
+                }
+                if ("en".equals(detector.detect(content).languageCode())) {
+                    english++;
+                }
+            }
+
+            out.append("| ").append(variant.name())
+                    .append(" | ").append(tokenCalculator.countTokens(variant.prompt()))
+                    .append(" | ").append(reportedInput)
+                    .append(" | ").append(tokenKept).append("/").append(REPS)
+                    .append(" | ").append(english).append("/").append(REPS)
+                    .append(" |\n");
+        }
+
+        Path path = Path.of("build", "measurement", "prompt-length-ab.md");
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, out.toString());
+        System.out.println("프롬프트 길이 A/B: " + path.toAbsolutePath());
+    }
+
+    private record PromptVariant(String name, String prompt) { }
 
     // ---------------------------------------------------------------------
     // 리포트

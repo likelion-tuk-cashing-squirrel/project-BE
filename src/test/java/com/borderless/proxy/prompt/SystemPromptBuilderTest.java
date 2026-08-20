@@ -41,7 +41,7 @@ class SystemPromptBuilderTest {
         void pivotTiersGetEnglishInstruction(RoutingTier tier) {
             // 지시가 없으면 모델이 원어로 답할 수 있고, 그러면 재번역이 이중 번역이 되어
             // 출력 절감 측정이 같은 언어끼리 비교하게 된다.
-            assertThat(builder.build(tier, Set.of(TOKEN_A))).contains("Respond in English only");
+            assertThat(builder.build(tier, Set.of(TOKEN_A))).contains("Answer in English only.");
         }
 
         @ParameterizedTest
@@ -62,7 +62,7 @@ class SystemPromptBuilderTest {
             String prompt = builder.build(RoutingTier.TIER_1, List.of(TOKEN_A, TOKEN_B));
 
             assertThat(prompt).contains(TOKEN_A).contains(TOKEN_B);
-            assertThat(prompt).contains("Do not translate, expand, explain, or reformat them");
+            assertThat(prompt).contains("Keep verbatim:");
         }
 
         @Test
@@ -131,8 +131,7 @@ class SystemPromptBuilderTest {
         void blankHintIsOmitted(String hint) {
             String prompt = builder.build(RoutingTier.TIER_3, Set.of(), hint);
 
-            assertThat(prompt).isEqualTo("Respond in English only, "
-                    + "even if the request contains text in another language.");
+            assertThat(prompt).isEqualTo("Answer in English only.");
         }
 
         @Test
@@ -155,7 +154,7 @@ class SystemPromptBuilderTest {
             String prompt = builder.build(RoutingTier.TIER_3, Set.of(TOKEN_A), HINT);
 
             assertThat(prompt.lines()).hasSize(3);
-            assertThat(prompt).contains("Respond in English only")
+            assertThat(prompt).contains("Answer in English only.")
                     .contains(TOKEN_A)
                     .contains("nagsulat");
         }

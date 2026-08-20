@@ -343,7 +343,7 @@ class ProxyOrchestratorTest {
             process(RoutingTier.TIER_2, "vi");
 
             // 지시가 없으면 모델이 원어로 답해 재번역이 이중 번역이 되고 출력 절감 지표가 망가진다.
-            assertThat(capturedLlmRequest().getSystemPrompt()).contains("Respond in English only");
+            assertThat(capturedLlmRequest().getSystemPrompt()).contains("Answer in English only.");
         }
 
         @Test
@@ -444,7 +444,7 @@ class ProxyOrchestratorTest {
 
             // 시스템 프롬프트는 프록시를 써서 생긴 입력 비용이다. 기준값(원문 직접 전송)에는
             // 없으므로 빼고 세면 절감분이 과대 계상된다.
-            assertThat(recorded.sentText()).contains("Respond in English only");
+            assertThat(recorded.sentText()).contains("Answer in English only.");
             assertThat(recorded.sentText()).contains(PIVOTED_EN);
         }
 
