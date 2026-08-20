@@ -6,6 +6,7 @@ import com.borderless.proxy.billing.service.UsageSummaryService;
 import com.borderless.proxy.client.LlmClient;
 import com.borderless.proxy.client.MorphologyClient;
 import com.borderless.proxy.client.TranslationClient;
+import com.borderless.proxy.client.config.MorphologyProperties;
 import com.borderless.proxy.client.dto.LlmRequest;
 import com.borderless.proxy.client.dto.LlmResponse;
 import com.borderless.proxy.client.dto.MorphologyHints;
@@ -113,16 +114,25 @@ class ProxyOrchestratorTest {
     @Mock
     private UsageSummaryService usageSummaryService;
 
+    /**
+     * 프로덕션 기본값은 {@code inject-hint: false}지만 테스트에서는 켠다.
+     * 꺼진 상태를 기본으로 두면 STEP 03-B 배선이 다시 죽어도 테스트가 통과한다.
+     * 꺼진 동작은 {@link MorphologyStep#hintDisabledSkipsSidecar()}에서 따로 본다.
+     */
+    private final MorphologyProperties morphologyProperties = new MorphologyProperties();
+
     private ProxyOrchestrator orchestrator;
 
     @BeforeEach
     void setUp() {
+        morphologyProperties.setInjectHint(true);
         orchestrator = new ProxyOrchestrator(
                 costRouter,
                 termMasker,
                 new TermRestorer(),
                 translationClient,
                 morphologyClient,
+                morphologyProperties,
                 llmClient,
                 new SystemPromptBuilder(),
                 usageRecorder,
@@ -305,6 +315,20 @@ class ProxyOrchestratorTest {
             ProxyResponseDTO response = process(RoutingTier.TIER_3, "tl");
 
             assertThat(response.getResult()).isNotBlank();
+        }
+
+        @Test
+        @DisplayName("inject-hint가 꺼져 있으면 TIER_3에서도 사이드카를 호출하지 않는다")
+        void hintDisabledSkipsSidecar() {
+            // 힌트의 유일한 소비처가 시스템 프롬프트다. 쓰지 않을 값을 위해 왕복 시간을 쓸 이유가 없다.
+            morphologyProperties.setInjectHint(false);
+
+            ProxyResponseDTO response = process(RoutingTier.TIER_3, "tl");
+
+            verify(morphologyClient, never()).hints(anyString());
+            assertThat(capturedLlmRequest().getSystemPrompt()).doesNotContain("morphology hints");
+            // 힌트만 빠지고 나머지 단계(마스킹·피벗·재번역·복원)는 그대로 돌아야 한다.
+            assertThat(response.getResult()).contains("Project Sigasig");
         }
     }
 

@@ -84,6 +84,10 @@ app:
     base-url: ${MORPHOLOGY_BASE_URL:}
     timeout: 3s
     optional: true
+    # 힌트를 LLM 시스템 프롬프트에 실을지 여부. 실측에서 역효과가 확인돼 꺼둔다.
+    # 요청당 입력 토큰 +162개, 답변에 접사 표기("i + sunod")가 섞여 나옴.
+    # 근거와 재현 절차: docs/pipeline-measurement.md
+    inject-hint: false
 
 logging:
   level:

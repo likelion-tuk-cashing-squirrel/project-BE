@@ -7,6 +7,7 @@ import com.borderless.proxy.billing.service.UsageSummaryService;
 import com.borderless.proxy.client.LlmClient;
 import com.borderless.proxy.client.MorphologyClient;
 import com.borderless.proxy.client.TranslationClient;
+import com.borderless.proxy.client.config.MorphologyProperties;
 import com.borderless.proxy.client.dto.LlmRequest;
 import com.borderless.proxy.client.dto.LlmResponse;
 import com.borderless.proxy.client.dto.MorphologyHints;
@@ -39,6 +40,7 @@ public class ProxyOrchestrator {
     private final TermRestorer termRestorer;
     private final TranslationClient translationClient;
     private final MorphologyClient morphologyClient;
+    private final MorphologyProperties morphologyProperties;
     private final LlmClient llmClient;
     private final SystemPromptBuilder systemPromptBuilder;
     private final UsageRecorder usageRecorder;
@@ -70,8 +72,12 @@ public class ProxyOrchestrator {
         //
         // 실패는 클라이언트가 삼킨다(app.morphology.optional=true). 힌트가 없으면 빈 문자열이
         // 되고 시스템 프롬프트에 아무것도 붙지 않는다.
+        //
+        // app.morphology.inject-hint가 꺼져 있으면 호출 자체를 생략한다. 힌트의 유일한 소비처가
+        // 시스템 프롬프트라, 쓰지 않을 값을 위해 사이드카 왕복 시간을 쓸 이유가 없다.
+        // 기본값이 꺼짐인 근거는 MorphologyProperties.injectHint 주석에 있다.
         String morphologyHint = "";
-        if (tier.requiresMorphologyHint()) {
+        if (tier.requiresMorphologyHint() && morphologyProperties.isInjectHint()) {
             MorphologyHints hints = morphologyClient.hints(currentText).block();
             if (hints != null) {
                 morphologyHint = hints.getHint();
