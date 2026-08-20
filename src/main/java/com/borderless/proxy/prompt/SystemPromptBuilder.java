@@ -31,11 +31,17 @@ public class SystemPromptBuilder {
     /**
      * 피벗 흐름에서 응답 언어를 고정한다.
      *
-     * <p>"even if the request is written in another language"를 덧붙이는 이유: 마스킹 토큰이나
-     * 고유명사 때문에 프롬프트에 비영어 문자열이 남아 있으면 모델이 그 언어로 답하려 하기 때문이다.
+     * <p><b>짧게 쓴다.</b> 이전 문구는
+     * {@code "Respond in English only, even if the request contains text in another language."}로
+     * 15 토큰이었다. 지금은 5 토큰이다. 시스템 프롬프트는 요청마다 입력 토큰으로 과금되는데,
+     * 실측에서 지시문 전체(57 토큰)가 영어 피벗으로 아낀 본문 토큰(26)보다 커서 입력 쪽 절감이
+     * 오히려 마이너스였다. 근거는 {@code docs/pipeline-measurement.md} 참고.
+     *
+     * <p>덧붙였던 "even if the request contains text in another language"를 뺀 이유는,
+     * 그 조건절이 대비하던 상황이 사라졌기 때문이다. 프롬프트에 남는 비영어 문자열은
+     * 마스킹 토큰이었고, 토큰 형식이 {@code {TERM_<PK>}}로 바뀌어 순수 ASCII가 됐다.
      */
-    private static final String ENGLISH_ONLY =
-            "Respond in English only, even if the request contains text in another language.";
+    private static final String ENGLISH_ONLY = "Answer in English only.";
 
     /** 형태소 힌트가 지나치게 길어지면 프롬프트 비용이 커진다. 넘치면 잘라낸다. */
     private static final int MAX_HINT_LENGTH = 1_000;
@@ -86,9 +92,14 @@ public class SystemPromptBuilder {
     /**
      * 치환 토큰을 그대로 유지하라는 지시를 만든다.
      *
-     * <p>토큰 형식을 설명하는 대신 <b>실제 토큰을 나열한다.</b> 형식이
-     * {@code {TERM_<무작위 12자리>}}라 예시로 설명하면 모델이 패턴을 잘못 일반화할 수 있고,
-     * {@code GlossaryService}가 생성 규칙을 바꾸면 프롬프트가 조용히 어긋난다.
+     * <p>토큰 형식을 설명하는 대신 <b>실제 토큰을 나열한다.</b> 예시로 형식을 설명하면 모델이
+     * 패턴을 잘못 일반화할 수 있고, {@code GlossaryService}가 생성 규칙을 바꾸면 프롬프트가
+     * 조용히 어긋난다.
+     *
+     * <p><b>지시문을 짧게 쓴다.</b> 이전 문구는
+     * {@code "Reproduce these placeholders exactly as they appear, character for character.
+     * Do not translate, expand, explain, or reformat them: "}로 토큰 하나 포함 31 토큰이었다.
+     * 지금은 9 토큰이다. 요청마다 과금되는 자리라 문장 길이가 그대로 비용이다.
      *
      * <p>치환된 토큰이 없으면 빈 문자열을 돌려준다. 지킬 게 없는데 지시를 넣으면 토큰만 낭비한다.
      */
@@ -107,9 +118,7 @@ public class SystemPromptBuilder {
             return "";
         }
 
-        return "Reproduce these placeholders exactly as they appear, character for character. "
-                + "Do not translate, expand, explain, or reformat them: "
-                + String.join(", ", tokens);
+        return "Keep verbatim: " + String.join(", ", tokens);
     }
 
     /**
