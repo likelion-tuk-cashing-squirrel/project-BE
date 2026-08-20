@@ -1,16 +1,82 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>로그인 - Borderless AI</title>
-</head>
-<body style="text-align: center; padding-top: 100px;">
-<h1>Borderless AI Proxy</h1>
-<p>토큰을 절약하는 스마트 번역 프록시 서비스입니다.</p>
+    <title>로그인 - Borderless AI Proxy</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <link rel="icon" href="data:,">
+    <style>
+        .login-wrap {
+            min-height: calc(100vh - 120px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
 
-<!-- 카카오 로그인 버튼 -->
-<a href="/oauth2/authorization/kakao" style="display:inline-block; background-color:#FEE500; color:#000000; padding:10px 20px; text-decoration:none; border-radius:5px; font-weight:bold; margin-top: 20px;">
-    카카오로 시작하기
-</a>
+        .login-card {
+            width: 100%;
+            max-width: 480px;
+            text-align: center;
+        }
+
+        .login-title {
+            margin: 0 0 10px;
+            font-size: 1.8rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .login-subtitle {
+            margin: 0 0 28px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .kakao-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 14px 16px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 1rem;
+            background: #FEE500;
+            color: #191919;
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            transition: transform .1s ease, filter .2s ease;
+            box-sizing: border-box;
+        }
+
+        .kakao-btn:hover { filter: brightness(0.96); }
+        .kakao-btn:active { transform: scale(0.99); }
+
+        .login-note {
+            margin-top: 14px;
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+<div class="login-wrap">
+    <section class="panel login-card">
+        <h1 class="login-title">Borderless AI Proxy</h1>
+        <p class="login-subtitle">
+            토큰 효율을 높이는 AI 번역 프록시 서비스<br>
+            카카오 계정으로 간편하게 시작하세요.
+        </p>
+
+        <a class="kakao-btn" href="/oauth2/authorization/kakao">
+            카카오로 시작하기
+        </a>
+
+        <p class="login-note">로그인 후 단어장과 비용 절감 대시보드를 사용할 수 있습니다.</p>
+    </section>
+</div>
 </body>
 </html>
