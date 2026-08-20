@@ -36,6 +36,9 @@ spring:
             user-info-uri: https://kapi.kakao.com/v2/user/me
             user-name-attribute: id
 
+  lifecycle:
+    timeout-per-shutdown-phase: 100s
+
 # ---------------------------------------------------------------------------
 # 커스텀 비즈니스 설정
 # ---------------------------------------------------------------------------
@@ -71,13 +74,13 @@ app:
     temperature: 0.3
     max-tokens: 2048
     timeout: 30s
-    max-retries: 2
+    max-retries: 1
 
   deepl:
     base-url: ${DEEPL_BASE_URL:}
     api-key: ${DEEPL_API_KEY:}
-    timeout: 10s
-    max-retries: 2
+    timeout: 8s
+    max-retries: 1
 
   morphology:
     # 형태소 분석 사이드카(FastAPI). EC2에서는 같은 호스트의 컨테이너(8000)로 뜬다.
@@ -88,3 +91,21 @@ app:
 logging:
   level:
     com.borderless.proxy.client: DEBUG
+
+# ---------------------------------------------------------------------------
+# 서버 · 리버스 프록시 연동 (Nginx)
+# ---------------------------------------------------------------------------
+server:
+  # Nginx가 보내는 X-Forwarded-* 헤더를 신뢰
+  forward-headers-strategy: framework
+
+  # 종료 신호를 받아도 처리 중인 요청은 마치고 종료
+  shutdown: graceful
+
+  servlet:
+    session:
+      cookie:
+        # HTTPS 연결에서만 세션 쿠키를 전송
+        secure: ${COOKIE_SECURE:false}
+        http-only: true
+        same-site: lax
