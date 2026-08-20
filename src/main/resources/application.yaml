@@ -106,6 +106,6 @@ server:
     session:
       cookie:
         # HTTPS 연결에서만 세션 쿠키를 전송
-        secure: true
+        secure: ${COOKIE_SECURE:false}
         http-only: true
         same-site: lax
