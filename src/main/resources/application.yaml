@@ -88,3 +88,18 @@ app:
 logging:
   level:
     com.borderless.proxy.client: DEBUG
+
+# ---------------------------------------------------------------------------
+# 서버 · 리버스 프록시 연동 (Nginx)
+# ---------------------------------------------------------------------------
+server:
+  # Nginx가 보내는 X-Forwarded-* 헤더를 신뢰
+  forward-headers-strategy: framework
+
+  servlet:
+    session:
+      cookie:
+        # HTTPS 연결에서만 세션 쿠키를 전송
+        secure: true
+        http-only: true
+        same-site: lax
