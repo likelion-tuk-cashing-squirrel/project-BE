@@ -81,27 +81,31 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           envs: DB_URL,DB_USERNAME,DB_PASSWORD,KAKAO_CLIENT_ID,OPENAI_API_KEY,OPENAI_BASE_URL,OPENAI_DEFAULT_MODEL,DEEPL_API_KEY,DEEPL_BASE_URL,MORPHOLOGY_BASE_URL
           script: |
-            export DB_URL=$DB_URL
-            export DB_USERNAME=$DB_USERNAME
-            export DB_PASSWORD=$DB_PASSWORD
-            export KAKAO_CLIENT_ID=$KAKAO_CLIENT_ID
-            export OPENAI_API_KEY=$OPENAI_API_KEY
-            export OPENAI_BASE_URL=$OPENAI_BASE_URL
-            export OPENAI_DEFAULT_MODEL=$OPENAI_DEFAULT_MODEL
-            export DEEPL_API_KEY=$DEEPL_API_KEY
-            export DEEPL_BASE_URL=$DEEPL_BASE_URL
-            export MORPHOLOGY_BASE_URL=$MORPHOLOGY_BASE_URL
-            
             docker pull ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest
             docker pull ${{ secrets.DOCKER_USERNAME }}/borderless-fastapi:latest
+
+            docker network create borderless-net 2>/dev/null || true
 
             if [ -f "docker-compose.yml" ]; then
               docker-compose pull
               docker-compose up -d --remove-orphans
             else
-              docker stop borderless-proxy || true
+              docker stop -t 10 borderless-fastapi || true
+              docker rm borderless-fastapi || true
+              docker run -d \
+                --name borderless-fastapi \
+                --network borderless-net \
+                --restart unless-stopped \
+                -p 127.0.0.1:8000:8000 \
+                ${{ secrets.DOCKER_USERNAME }}/borderless-fastapi:latest
+
+              docker stop -t 110 borderless-proxy || true
               docker rm borderless-proxy || true
-              docker run -d -p 8080:8080 \
+              docker run -d \
+                --name borderless-proxy \
+                --network borderless-net \
+                --restart unless-stopped \
+                -p 127.0.0.1:8080:8080 \
                 -e DB_URL="$DB_URL" \
                 -e DB_USERNAME="$DB_USERNAME" \
                 -e DB_PASSWORD="$DB_PASSWORD" \
@@ -112,11 +116,8 @@ jobs:
                 -e DEEPL_API_KEY="$DEEPL_API_KEY" \
                 -e DEEPL_BASE_URL="$DEEPL_BASE_URL" \
                 -e MORPHOLOGY_BASE_URL="$MORPHOLOGY_BASE_URL" \
-                --name borderless-proxy ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest
-
-              docker stop borderless-fastapi || true
-              docker rm borderless-fastapi || true
-              docker run -d -p 8000:8000 --name borderless-fastapi ${{ secrets.DOCKER_USERNAME }}/borderless-fastapi:latest
+                -e COOKIE_SECURE="true" \
+                ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest
             fi
 
             docker image prune -f

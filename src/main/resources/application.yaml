@@ -36,6 +36,9 @@ spring:
             user-info-uri: https://kapi.kakao.com/v2/user/me
             user-name-attribute: id
 
+  lifecycle:
+    timeout-per-shutdown-phase: 100s
+
 # ---------------------------------------------------------------------------
 # 커스텀 비즈니스 설정
 # ---------------------------------------------------------------------------
@@ -95,6 +98,9 @@ logging:
 server:
   # Nginx가 보내는 X-Forwarded-* 헤더를 신뢰
   forward-headers-strategy: framework
+
+  # 종료 신호를 받아도 처리 중인 요청은 마치고 종료
+  shutdown: graceful
 
   servlet:
     session:
