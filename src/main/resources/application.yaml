@@ -71,13 +71,13 @@ app:
     temperature: 0.3
     max-tokens: 2048
     timeout: 30s
-    max-retries: 2
+    max-retries: 1
 
   deepl:
     base-url: ${DEEPL_BASE_URL:}
     api-key: ${DEEPL_API_KEY:}
-    timeout: 10s
-    max-retries: 2
+    timeout: 8s
+    max-retries: 1
 
   morphology:
     # 형태소 분석 사이드카(FastAPI). EC2에서는 같은 호스트의 컨테이너(8000)로 뜬다.
