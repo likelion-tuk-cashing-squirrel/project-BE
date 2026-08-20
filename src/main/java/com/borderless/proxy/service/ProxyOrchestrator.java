@@ -14,6 +14,7 @@ import com.borderless.proxy.glossary.dto.MaskingResultDTO;
 import com.borderless.proxy.glossary.service.TermMasker;
 import com.borderless.proxy.glossary.service.TermRestorer;
 import com.borderless.proxy.dto.ProxyRequestDto;
+import com.borderless.proxy.prompt.SystemPromptBuilder;
 import com.borderless.proxy.proxy.dto.ProxyResponseDTO;
 import com.borderless.proxy.proxy.entity.UsageLog;
 import com.borderless.proxy.routing.CostRouter;
@@ -36,6 +37,7 @@ public class ProxyOrchestrator {
     private final TermRestorer termRestorer;
     private final TranslationClient translationClient;
     private final LlmClient llmClient;
+    private final SystemPromptBuilder systemPromptBuilder;
     private final UsageRecorder usageRecorder;
     private final UsageSummaryService usageSummaryService;
 
@@ -62,11 +64,22 @@ public class ProxyOrchestrator {
             currentText = translated.getFirstText();
         }
 
-        // billing용: 실제 LLM 전송 텍스트
-        String sentTextToLlm = currentText;
-
         // STEP 04: LLM 호출
-        LlmRequest llmRequest = LlmRequest.of(currentText);
+        //
+        // 시스템 프롬프트는 마스킹 사전의 키(= 실제로 치환된 토큰)를 넘겨서 만든다.
+        // 치환된 게 없으면 빌더가 빈 문자열을 돌려주고, OpenAiChatRequest가 system 메시지를
+        // 아예 생략한다. 지킬 게 없는데 지시를 붙이면 입력 토큰만 늘어 절감 목적에 역행한다.
+        String systemPrompt = systemPromptBuilder.build(tier, dictionary.keySet());
+
+        // billing용: 실제 LLM 전송 텍스트.
+        //
+        // 시스템 프롬프트를 포함시킨다. CostCalculator 주석은 전후 비교에 "페이로드 텍스트만"
+        // 세라고 하지만, 그건 양쪽에 똑같이 실리는 오버헤드를 상쇄하려는 취지다.
+        // 시스템 프롬프트는 프록시를 써서 생긴 비용이라 기준값(원문 직접 전송)에는 없다.
+        // 빼고 세면 프록시가 얹은 비용이 지표에서 사라져 절감분이 과대 계상된다.
+        String sentTextToLlm = systemPrompt.isEmpty() ? currentText : systemPrompt + "\n" + currentText;
+
+        LlmRequest llmRequest = LlmRequest.of(systemPrompt, currentText);
         LlmResponse llmResponse = llmClient.complete(llmRequest).block();
 
         // billing용: 실제 LLM 응답(피벗 시 영어)
