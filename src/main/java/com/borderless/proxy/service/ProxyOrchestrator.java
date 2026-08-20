@@ -5,9 +5,11 @@ import com.borderless.proxy.billing.dto.ReportedUsage;
 import com.borderless.proxy.billing.dto.UsageRecordRequest;
 import com.borderless.proxy.billing.service.UsageSummaryService;
 import com.borderless.proxy.client.LlmClient;
+import com.borderless.proxy.client.MorphologyClient;
 import com.borderless.proxy.client.TranslationClient;
 import com.borderless.proxy.client.dto.LlmRequest;
 import com.borderless.proxy.client.dto.LlmResponse;
+import com.borderless.proxy.client.dto.MorphologyHints;
 import com.borderless.proxy.client.dto.TranslationRequest;
 import com.borderless.proxy.client.dto.TranslationResponse;
 import com.borderless.proxy.glossary.dto.MaskingResultDTO;
@@ -36,6 +38,7 @@ public class ProxyOrchestrator {
     private final TermMasker termMasker;
     private final TermRestorer termRestorer;
     private final TranslationClient translationClient;
+    private final MorphologyClient morphologyClient;
     private final LlmClient llmClient;
     private final SystemPromptBuilder systemPromptBuilder;
     private final UsageRecorder usageRecorder;
@@ -57,6 +60,25 @@ public class ProxyOrchestrator {
             dictionary = masked.getDictionary();
         }
 
+        // STEP 03-B: 형태소 힌트 (TIER_3만)
+        //
+        // 피벗보다 먼저 호출한다. 사이드카는 타갈로그를 분석하므로 영어로 번역된 뒤에
+        // 넘기면 어근·접사를 찾을 수 없다. 단계 번호가 03-B라 순서를 오해하기 쉬운 지점이다.
+        //
+        // 마스킹된 텍스트를 넘긴다. 사이드카가 {TERM_...} 토큰을 분석 대상에서 제외하므로
+        // 치환 토큰이 소문자로 쪼개져 힌트에 섞이는 일이 없다.
+        //
+        // 실패는 클라이언트가 삼킨다(app.morphology.optional=true). 힌트가 없으면 빈 문자열이
+        // 되고 시스템 프롬프트에 아무것도 붙지 않는다.
+        String morphologyHint = "";
+        if (tier.requiresMorphologyHint()) {
+            MorphologyHints hints = morphologyClient.hints(currentText).block();
+            if (hints != null) {
+                morphologyHint = hints.getHint();
+            }
+            log.debug("형태소 힌트 조회 완료: tier={}, 힌트 길이={}", tier, morphologyHint.length());
+        }
+
         // STEP 03: 영어 피벗
         if (tier.requiresPivot()) {
             TranslationRequest toEnglish = TranslationRequest.of(currentText, routing.detectedLanguage(), "EN");
@@ -69,7 +91,7 @@ public class ProxyOrchestrator {
         // 시스템 프롬프트는 마스킹 사전의 키(= 실제로 치환된 토큰)를 넘겨서 만든다.
         // 치환된 게 없으면 빌더가 빈 문자열을 돌려주고, OpenAiChatRequest가 system 메시지를
         // 아예 생략한다. 지킬 게 없는데 지시를 붙이면 입력 토큰만 늘어 절감 목적에 역행한다.
-        String systemPrompt = systemPromptBuilder.build(tier, dictionary.keySet());
+        String systemPrompt = systemPromptBuilder.build(tier, dictionary.keySet(), morphologyHint);
 
         // billing용: 실제 LLM 전송 텍스트.
         //
