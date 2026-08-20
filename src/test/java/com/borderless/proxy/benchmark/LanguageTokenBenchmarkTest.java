@@ -1,14 +1,14 @@
 package com.borderless.proxy.benchmark;
 
-import com.borderless.proxy.client.DeepLTranslationClient;
 import com.borderless.proxy.client.config.DeepLProperties;
-import com.borderless.proxy.client.dto.TranslationRequest;
 import com.borderless.proxy.routing.TokenCalculator;
+import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.io.IOException;
@@ -65,14 +65,19 @@ class LanguageTokenBenchmarkTest {
                     + "from section four of the runbook, and the on-call engineer has not been "
                     + "notified about the maintenance window this weekend.");
 
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
+
     private final TokenCalculator tokenCalculator = new TokenCalculator();
+
+    /** 원시 HTTP 교환 기록. 측정이 실제 API 호출에서 나왔다는 증거다. */
+    private final List<RawCall> rawCalls = new ArrayList<>();
 
     @Test
     @DisplayName("같은 문장을 언어별로 번역해 토큰 수를 비교한다")
     void measure() throws IOException {
-        DeepLTranslationClient deepL = new DeepLTranslationClient(deepLWebClient(), deepLProperties());
         Provenance provenance = Provenance.capture();
-
         List<Row> rows = new ArrayList<>();
 
         for (String source : SOURCES) {
@@ -80,11 +85,7 @@ class LanguageTokenBenchmarkTest {
             Map<String, Translated> byLanguage = new LinkedHashMap<>();
 
             for (String targetCode : TARGETS.keySet()) {
-                String translated = deepL
-                        .translate(TranslationRequest.of(source, "EN", targetCode))
-                        .block()
-                        .getFirstText();
-
+                String translated = translateAndRecord(source, targetCode);
                 byLanguage.put(targetCode,
                         new Translated(translated, tokenCalculator.countTokens(translated)));
             }
@@ -92,8 +93,98 @@ class LanguageTokenBenchmarkTest {
             rows.add(new Row(source, englishTokens, byLanguage));
         }
 
+        writeRawLog(provenance);
         writeRawData(rows, provenance);
         writeChart(rows, provenance);
+    }
+
+    /**
+     * DeepL을 호출하고 <b>원시 요청·응답 본문을 그대로 기록한다.</b>
+     *
+     * <p>파싱된 DTO만 남기면 "이 숫자가 실제 API에서 나왔는가"를 검증할 방법이 없다.
+     * 응답 JSON 원본이 있으면 제3자가 번역문을 확인하고, 그 문자열로 토큰을 다시 세서
+     * 표를 재계산할 수 있다.
+     *
+     * <p>{@code DeepLTranslationClient}를 쓰지 않고 직접 호출하는 이유는 원시 본문이 필요하기
+     * 때문이다. 클라이언트는 DTO로 파싱해버려서 원본이 남지 않는다. 클라이언트 자체는
+     * {@code DeepLTranslationClientTest}가 검증한다.
+     */
+    private String translateAndRecord(String source, String targetCode) {
+        Map<String, Object> body = Map.of(
+                "text", List.of(source),
+                "source_lang", "EN",
+                "target_lang", targetCode);
+
+        String requestJson = toJson(body);
+        String startedAt = LocalDateTime.now().format(TIME);
+        long start = System.nanoTime();
+
+        ResponseEntity<String> response = deepLWebClient().post()
+                .uri("/v2/translate")
+                .bodyValue(body)
+                .retrieve()
+                .toEntity(String.class)
+                .block();
+
+        long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+        String responseJson = response.getBody();
+
+        rawCalls.add(new RawCall(startedAt, targetCode, requestJson,
+                response.getStatusCode().value(), responseJson, elapsedMs));
+
+        return firstTranslation(responseJson);
+    }
+
+    /**
+     * 응답 JSON에서 번역문을 꺼낸다.
+     *
+     * <p>원시 응답 문자열에서 직접 파싱한다. 표의 값과 로그에 남는 값이 같은 출처에서 나와야
+     * 대조가 성립한다. 별도로 한 번 더 호출하면 DeepL 응답 변동 때문에 둘이 어긋날 수 있다.
+     */
+    private static String firstTranslation(String responseJson) {
+        return MAPPER.readTree(responseJson).path("translations").get(0).path("text").asString();
+    }
+
+    private static String toJson(Object value) {
+        return MAPPER.writeValueAsString(value);
+    }
+
+    private record RawCall(String startedAt, String targetLang, String requestJson,
+                           int httpStatus, String responseJson, long elapsedMs) { }
+
+    /**
+     * 원시 HTTP 교환 로그를 파일로 남긴다.
+     *
+     * <p>차트와 요약표는 이 프로젝트 코드가 만든 산출물이라, 숫자를 지어내도 똑같이 생긴다.
+     * 원시 응답 본문은 DeepL이 돌려준 값이므로 <b>번역문을 우리가 정할 수 없다.</b>
+     * 표의 토큰 수가 이 응답의 문자열에서 나왔다는 걸 대조할 수 있어야 증빙이 성립한다.
+     */
+    private void writeRawLog(Provenance p) throws IOException {
+        StringBuilder out = new StringBuilder();
+        out.append("# DeepL 원시 HTTP 교환 로그\n\n");
+        out.append("측정 시각 ").append(p.timestamp())
+                .append(" · 커밋 `").append(p.commit()).append("` · 총 ")
+                .append(rawCalls.size()).append("건\n\n");
+        out.append("각 항목은 `POST ").append(deepLProperties().getBaseUrl())
+                .append("/v2/translate` 의 요청·응답 본문 원본이다. ");
+        out.append("`Authorization` 헤더는 API 키가 들어 있어 기록하지 않는다.\n");
+
+        int index = 1;
+        for (RawCall call : rawCalls) {
+            out.append("\n---\n\n### #").append(index++).append(" · EN → ")
+                    .append(call.targetLang()).append("\n\n");
+            out.append("| | |\n|---|---|\n");
+            out.append("| 호출 시각 | ").append(call.startedAt()).append(" |\n");
+            out.append("| HTTP 상태 | ").append(call.httpStatus()).append(" |\n");
+            out.append("| 왕복 시간 | ").append(call.elapsedMs()).append(" ms |\n\n");
+            out.append("요청 본문\n\n```json\n").append(call.requestJson()).append("\n```\n\n");
+            out.append("응답 본문 (DeepL 원본)\n\n```json\n").append(call.responseJson()).append("\n```\n");
+        }
+
+        Path path = Path.of("build", "measurement", "benchmark-raw-http-log.md");
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, out.toString());
+        System.out.println("BENCH>> 원시 HTTP 로그: " + path.toAbsolutePath());
     }
 
     /**
@@ -162,13 +253,26 @@ class LanguageTokenBenchmarkTest {
         out.append("```\n\n");
 
         out.append("### 이 표를 직접 검증하는 방법\n\n");
-        out.append("우리 코드를 믿지 않아도 확인할 수 있다. 아래 [문장별 상세]");
-        out.append("(#문장별-상세)의 번역문을 그대로 복사해 ");
-        out.append("<https://platform.openai.com/tokenizer> 에서 `o200k_base`로 세면 ");
-        out.append("같은 토큰 수가 나온다. 토큰 계산은 같은 문자열에 대해 항상 같은 값을 낸다.\n\n");
-        out.append("> 단 DeepL 번역문은 실행마다 미세하게 달라진다. 합계가 1~2% 흔들리므로 ");
+        out.append("이 문서와 차트는 프로젝트 코드가 만든 산출물이다. **그 자체로는 ");
+        out.append("숫자가 실제 측정에서 나왔다는 증거가 되지 않는다.** 아래 3단계로 대조할 수 있다.\n\n");
+        out.append("1. **원시 응답 확인** — `build/measurement/benchmark-raw-http-log.md`에 ");
+        out.append("DeepL이 돌려준 응답 본문이 그대로 들어 있다. 번역문은 DeepL이 정한 값이라 ");
+        out.append("우리가 만들 수 없다\n");
+        out.append("2. **토큰 재계산** — 그 응답의 번역문을 복사해 ");
+        out.append("<https://platform.openai.com/tokenizer>에서 `o200k_base`로 센다. ");
+        out.append("아래 표와 같은 값이 나와야 한다\n");
+        out.append("3. **호출 사실 확인** — DeepL 콘솔(<https://www.deepl.com/your-account/usage>)의 ");
+        out.append("사용량 기록과 위 측정 시각을 대조한다. 이건 공급자 측 기록이라 우리가 위조할 수 없다\n\n");
+        out.append("> DeepL 번역문은 실행마다 미세하게 달라진다. 합계가 1~2% 흔들리므로 ");
         out.append("절대값보다 **배율(1.7~1.9x)** 을 인용하는 편이 안전하다. ");
-        out.append("위 번역문으로 재계산하면 표의 값이 정확히 재현된다.\n\n");
+        out.append("위 원시 로그의 번역문으로 재계산하면 이 표의 값이 정확히 재현된다.\n\n");
+        out.append("### 함께 보관할 것\n\n");
+        out.append("| 산출물 | 만든 주체 | 위조 가능성 |\n|---|---|---|\n");
+        out.append("| 이 문서 · 차트 HTML | 우리 코드 | 있음 (정리물) |\n");
+        out.append("| `benchmark-raw-http-log.md` 응답 본문 | DeepL | 낮음 |\n");
+        out.append("| Gradle 테스트 리포트 `build/reports/tests/test/index.html` | Gradle | 낮음 |\n");
+        out.append("| DeepL 콘솔 사용량 스크린샷 | DeepL | 없음 |\n");
+        out.append("| GitHub Actions 실행 로그 | GitHub | 없음 |\n\n");
 
         out.append("## 요약\n\n| 문장 | 영어 |");
         TARGETS.forEach((code, name) -> out.append(" ").append(name).append(" |"));
