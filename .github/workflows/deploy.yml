@@ -69,11 +69,17 @@ jobs:
           DB_USERNAME: ${{ secrets.DB_USERNAME }}
           DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
           KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+          OPENAI_DEFAULT_MODEL: ${{ secrets.OPENAI_DEFAULT_MODEL }}
+          DEEPL_API_KEY: ${{ secrets.DEEPL_API_KEY }}
+          DEEPL_BASE_URL: ${{ secrets.DEEPL_BASE_URL }}
+          MORPHOLOGY_BASE_URL: ${{ secrets.MORPHOLOGY_BASE_URL }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          envs: DB_URL,DB_USERNAME,DB_PASSWORD,KAKAO_CLIENT_ID
+          envs: DB_URL,DB_USERNAME,DB_PASSWORD,KAKAO_CLIENT_ID,OPENAI_API_KEY,OPENAI_BASE_URL,OPENAI_DEFAULT_MODEL,DEEPL_API_KEY,DEEPL_BASE_URL,MORPHOLOGY_BASE_URL
           script: |
             docker pull ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest
             docker pull ${{ secrets.DOCKER_USERNAME }}/borderless-fastapi:latest
