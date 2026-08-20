@@ -26,7 +26,7 @@ spring:
         registration:
           kakao:
             client-id: ${KAKAO_CLIENT_ID}
-            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+            redirect-uri: https://cashingsquirrel.xyz/login/oauth2/code/kakao
             authorization-grant-type: authorization_code
             client-name: Kakao
         provider:
