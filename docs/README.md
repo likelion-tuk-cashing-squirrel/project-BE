@@ -4,6 +4,7 @@ Borderless AI Proxy 백엔드 설계·구현 문서.
 
 | 문서 | 내용 |
 |---|---|
+| [architecture.html](./architecture.html) | 시스템 아키텍처. 배포 토폴로지·패키지 구성·요청 파이프라인·티어 매트릭스·데이터 모델·알려진 공백 |
 | [demo-storyboard.html](./demo-storyboard.html) | 데모 영상 스토리보드. 6개 씬 순차 재생 + 촬영 노트 |
 | [team-flow.html](./team-flow.html) | 팀 단위 사용 플로우. 프록시 개념·팀원 예시·데모 촬영 컷 |
 | [pipeline-flow.html](./pipeline-flow.html) | 전체 파이프라인 흐름도. 요청이 거치는 5단계 + 언어 티어 분기 |

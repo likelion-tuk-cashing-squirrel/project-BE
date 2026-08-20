@@ -93,3 +93,43 @@ tasks.named('bootRun') {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// 벤치마크 전용 태스크
+//
+// ./gradlew benchmark --console=plain
+//
+// 표준 출력을 그대로 보여준다. 측정 결과를 파일로만 남기면 "실제로 돌렸는가"를
+// 보여줄 수 없어서, 터미널 화면 자체를 증빙 자료로 쓸 수 있게 했다.
+// 테스트 이벤트 로그(PASSED/FAILED 줄)는 끄고 측정 출력만 남긴다.
+//
+// 외부 API를 호출하므로 일반 `test`에서는 환경변수 가드로 스킵된다.
+// 이 태스크는 그 변수를 직접 넣어 항상 실행한다. DeepL 문자 할당량을 소모한다.
+// ---------------------------------------------------------------------------
+tasks.register('benchmark', Test) {
+	group = 'verification'
+	description = '언어별 토큰 벤치마크 실행 (DeepL 호출 발생, 결과를 콘솔에 출력)'
+
+	testClassesDirs = sourceSets.test.output.classesDirs
+	classpath = sourceSets.test.runtimeClasspath
+	useJUnitPlatform()
+	filter {
+		includeTestsMatching 'com.borderless.proxy.benchmark.*'
+	}
+
+	environment 'RUN_PIPELINE_MEASUREMENT', 'true'
+	dotenv.each { k, v ->
+		if (System.getenv(k) == null) {
+			environment k, v
+		}
+	}
+
+	testLogging {
+		showStandardStreams = true
+		events()
+		exceptionFormat = 'full'
+	}
+
+	// 캐시로 스킵되면 화면에 아무것도 안 나온다. 증빙용이라 매번 실제로 돌려야 한다.
+	outputs.upToDateWhen { false }
+}
