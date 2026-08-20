@@ -116,7 +116,7 @@ jobs:
                 -e DEEPL_API_KEY="$DEEPL_API_KEY" \
                 -e DEEPL_BASE_URL="$DEEPL_BASE_URL" \
                 -e MORPHOLOGY_BASE_URL="$MORPHOLOGY_BASE_URL" \
-                -e COOKIE_SECURE="true" \
+                -e COOKIE_SECURE="false" \
                 ${{ secrets.DOCKER_USERNAME }}/borderless-proxy:latest
             fi
 
