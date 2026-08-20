@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>언어별 토큰 소모량 벤치마크</title>
+<style>
+  :root {
+    --bg:#15161a; --panel:#1b1c21; --line:#2a2c33;
+    --t1:#e8e9ed; --t2:#9a9ca6; --t3:#5f6169;
+    --en:#4ade80; --ko:#7c8cff; --vi:#fbbf24; --tl:#f472b6;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; padding:44px 40px; background:var(--bg); color:var(--t1);
+    font-family:-apple-system,"Segoe UI",Roboto,"Malgun Gothic",sans-serif;
+    font-size:14px; line-height:1.6;
+  }
+  h1 { font-size:23px; margin:0 0 6px; letter-spacing:-.4px; }
+  .lede { color:var(--t2); font-size:13.5px; margin:0 0 6px; max-width:760px; }
+  .meta { color:var(--t3); font-size:12px; margin:0 0 30px; }
+  .meta code { background:#22232a; padding:1px 5px; border-radius:4px; font-size:11.5px; }
+  .panel {
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:26px 28px; margin-bottom:22px;
+  }
+  .ph { font-size:12px; font-weight:600; color:var(--t2);
+        text-transform:uppercase; letter-spacing:.9px; margin:0 0 20px; }
+  .brow { display:grid; grid-template-columns:78px 1fr 74px 118px;
+          align-items:center; gap:14px; margin-bottom:13px; }
+  .bl { font-size:13px; color:var(--t2); text-align:right; }
+  .btrack { height:22px; background:#22232a; border-radius:5px; overflow:hidden; }
+  .bfill { display:block; height:100%; border-radius:5px; }
+  .bfill.en { background:var(--en); } .bfill.ko { background:var(--ko); }
+  .bfill.vi { background:var(--vi); } .bfill.tl { background:var(--tl); }
+  .bv { font-size:15px; font-weight:650; font-variant-numeric:tabular-nums; }
+  .bu { font-size:10.5px; color:var(--t3); margin-left:3px; font-weight:400; }
+  .bn { font-size:12px; color:var(--t3); font-variant-numeric:tabular-nums; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { padding:9px 11px; border-bottom:1px solid var(--line); text-align:left; }
+  th { font-size:11.5px; color:var(--t3); text-transform:uppercase;
+       letter-spacing:.7px; font-weight:600; }
+  td.n { color:var(--t3); font-size:12px; width:44px; }
+  td.num { font-variant-numeric:tabular-nums; font-weight:600; width:96px; }
+  td.num.en { color:var(--en); }
+  td.num .r { color:var(--t3); font-size:11px; font-weight:400; margin-left:6px; }
+  td.src { color:var(--t2); font-size:12.5px; }
+  tr:last-child td { border-bottom:none; }
+  .note { color:var(--t3); font-size:12px; margin:16px 0 0; }
+  .note b { color:var(--t2); font-weight:600; }
+
+  /* 검증 블록 — 측정에 쓴 문자열 원본 */
+  .vrow { display:grid; grid-template-columns:36px 1fr; gap:10px;
+          padding:11px 0; border-bottom:1px solid var(--line); }
+  .vrow:last-child { border-bottom:none; }
+  .vn { color:var(--t3); font-size:12px; padding-top:2px; }
+  .vline { display:grid; grid-template-columns:34px 38px 1fr;
+           gap:9px; align-items:baseline; margin-bottom:4px; }
+  .vlang { font-size:10px; font-weight:700; letter-spacing:.5px;
+           padding:2px 0; text-align:center; border-radius:3px; color:#15161a; }
+  .vlang.en { background:var(--en); } .vlang.ko { background:var(--ko); }
+  .vlang.vi { background:var(--vi); } .vlang.tl { background:var(--tl); }
+  .vtok { font-size:12px; font-variant-numeric:tabular-nums;
+          color:var(--t2); text-align:right; }
+  .vline code { font-size:12px; color:var(--t1); font-family:
+          ui-monospace,"Cascadia Mono",Consolas,monospace; word-break:break-word; }
+
+  /* 출처 — 캡처 이미지 안에 남아야 증빙이 된다 */
+  .prov { border:1px solid var(--line); border-radius:10px;
+          padding:16px 20px; background:#191a1e; }
+  .prov dl { display:grid; grid-template-columns:auto 1fr;
+             gap:5px 16px; margin:0; font-size:12px; }
+  .prov dt { color:var(--t3); }
+  .prov dd { margin:0; color:var(--t2); font-variant-numeric:tabular-nums; }
+  .prov code { background:#22232a; padding:1px 5px; border-radius:4px; font-size:11.5px; }
+  .prov .repro { margin:14px 0 0; padding-top:13px; border-top:1px solid var(--line); }
+  .prov .repro pre { margin:6px 0 0; padding:10px 12px; background:#22232a;
+           border-radius:6px; font-size:11.5px; color:var(--t1); overflow-x:auto; }
+</style>
+</head>
+<body>
+  <h1>언어별 토큰 소모량</h1>
+  <p class="lede">
+    같은 내용을 어떤 언어로 쓰는지에 따라 과금 토큰이 달라진다.
+    이 차이가 영어 피벗으로 비용을 줄일 수 있는 근거다.
+  </p>
+  <p class="meta">
+    토크나이저 <code>JTokkit o200k_base</code> (GPT-4o / GPT-4.1 과금 단위) ·
+    번역 <code>DeepL API</code> (영어 원문 → 각 언어) ·
+    LLM 호출 없음 · DeepL 번역문 변동으로 합계는 실행마다 1~2% 흔들림
+  </p>
+
+  <div class="panel">
+    <p class="ph">문장 5개 합계</p>
+    <div class="brow">
+  <span class="bl">영어</span>
+  <span class="btrack"><i class="bfill en" style="width:54%"></i></span>
+  <span class="bv">86<span class="bu">tok</span></span>
+  <span class="bn">기준</span>
+</div>
+<div class="brow">
+  <span class="bl">한국어</span>
+  <span class="btrack"><i class="bfill ko" style="width:94%"></i></span>
+  <span class="bv">151<span class="bu">tok</span></span>
+  <span class="bn">1.76x · +65tok</span>
+</div>
+<div class="brow">
+  <span class="bl">베트남어</span>
+  <span class="btrack"><i class="bfill vi" style="width:100%"></i></span>
+  <span class="bv">160<span class="bu">tok</span></span>
+  <span class="bn">1.86x · +74tok</span>
+</div>
+<div class="brow">
+  <span class="bl">타갈로그</span>
+  <span class="btrack"><i class="bfill tl" style="width:96%"></i></span>
+  <span class="bv">153<span class="bu">tok</span></span>
+  <span class="bn">1.78x · +67tok</span>
+</div>
+
+  </div>
+
+  <div class="panel">
+    <p class="ph">문장별 내역</p>
+    <table>
+      <thead><tr><th></th><th>영어</th><th>한국어</th><th>베트남어</th><th>타갈로그</th><th>영어 원문</th></tr></thead>
+      <tbody><tr><td class="n">#1</td><td class="num en">4</td><td class="num">6<span class="r">1.50x</span></td><td class="num">10<span class="r">2.50x</span></td><td class="num">8<span class="r">2.00x</span></td><td class="src">The deployment failed.</td></tr><tr><td class="n">#2</td><td class="num en">9</td><td class="num">16<span class="r">1.78x</span></td><td class="num">16<span class="r">1.78x</span></td><td class="num">12<span class="r">1.33x</span></td><td class="src">Please review the pull request before the meeting.</td></tr><tr><td class="n">#3</td><td class="num en">13</td><td class="num">26<span class="r">2.00x</span></td><td class="num">29<span class="r">2.23x</span></td><td class="num">26<span class="r">2.00x</span></td><td class="src">Our team needs a clear migration plan for the database schema changes.</td></tr><tr><td class="n">#4</td><td class="num en">22</td><td class="num">42<span class="r">1.91x</span></td><td class="num">45<span class="r">2.05x</span></td><td class="num">45<span class="r">2.05x</span></td><td class="src">Explain how we should sequence the background worker deployment and the client cutover so that downtime stays under fifteen minutes.</td></tr><tr><td class="n">#5</td><td class="num en">38</td><td class="num">61<span class="r">1.61x</span></td><td class="num">60<span class="r">1.58x</span></td><td class="num">62<span class="r">1.63x</span></td><td class="src">The release owner approved the change, but the rollback steps are still missing from section four of the runbook, and the on-call engineer has not been notified about the maintenance window this weekend.</td></tr></tbody>
+    </table>
+    <p class="note">
+      <b>읽는 법</b> — 작은 숫자는 영어 대비 배율이다.
+      문장이 짧을수록 배율이 커지는 경향이 있는데, 짧은 문장에서는 문법 형태소가
+      차지하는 비중이 상대적으로 크기 때문이다.
+    </p>
+  </div>
+
+  <div class="panel">
+    <p class="ph">측정에 쓴 문자열 (직접 검증용)</p>
+    <div class="vrow"><div class="vn">#1</div><div><div class="vline"><span class="vlang en">EN</span><span class="vtok">4</span><code>The deployment failed.</code></div><div class="vline"><span class="vlang ko">KO</span><span class="vtok">6</span><code>배포에 실패했습니다.</code></div><div class="vline"><span class="vlang vi">VI</span><span class="vtok">10</span><code>Quá trình triển khai đã thất bại.</code></div><div class="vline"><span class="vlang tl">TL</span><span class="vtok">8</span><code>Nabigo ang pag-deploy.</code></div></div></div><div class="vrow"><div class="vn">#2</div><div><div class="vline"><span class="vlang en">EN</span><span class="vtok">9</span><code>Please review the pull request before the meeting.</code></div><div class="vline"><span class="vlang ko">KO</span><span class="vtok">16</span><code>회의 전에 풀 리퀘스트를 검토해 주시기 바랍니다.</code></div><div class="vline"><span class="vlang vi">VI</span><span class="vtok">16</span><code>Xin vui lòng xem xét yêu cầu kéo trước khi diễn ra cuộc họp.</code></div><div class="vline"><span class="vlang tl">TL</span><span class="vtok">12</span><code>Pakisuri ang pull request bago ang pagpupulong.</code></div></div></div><div class="vrow"><div class="vn">#3</div><div><div class="vline"><span class="vlang en">EN</span><span class="vtok">13</span><code>Our team needs a clear migration plan for the database schema changes.</code></div><div class="vline"><span class="vlang ko">KO</span><span class="vtok">26</span><code>저희 팀에는 데이터베이스 스키마 변경을 위한 명확한 마이그레이션 계획이 필요합니다.</code></div><div class="vline"><span class="vlang vi">VI</span><span class="vtok">29</span><code>Đội ngũ của chúng tôi cần một kế hoạch chuyển đổi rõ ràng cho các thay đổi về cấu trúc cơ sở dữ liệu.</code></div><div class="vline"><span class="vlang tl">TL</span><span class="vtok">26</span><code>Kailangan ng aming koponan ng isang malinaw na plano sa migrasyon para sa mga pagbabago sa iskema ng database.</code></div></div></div><div class="vrow"><div class="vn">#4</div><div><div class="vline"><span class="vlang en">EN</span><span class="vtok">22</span><code>Explain how we should sequence the background worker deployment and the client cutover so that downtime stays under fifteen minutes.</code></div><div class="vline"><span class="vlang ko">KO</span><span class="vtok">42</span><code>가동 중단 시간을 15분 이내로 유지하기 위해 백그라운드 워커 배포와 클라이언트 전환을 어떤 순서로 진행해야 하는지 설명하십시오.</code></div><div class="vline"><span class="vlang vi">VI</span><span class="vtok">45</span><code>Hãy giải thích cách chúng ta nên sắp xếp thứ tự triển khai công cụ nền và quá trình chuyển đổi sang hệ thống khách hàng để thời gian ngừng hoạt động không vượt quá mười lăm phút.</code></div><div class="vline"><span class="vlang tl">TL</span><span class="vtok">45</span><code>Ipaliwanag kung paano natin dapat isaayos ang pagkakasunod-sunod ng pag-deploy ng background worker at ng paglipat ng kliyente upang manatili sa ilalim ng labinlimang minuto ang downtime.</code></div></div></div><div class="vrow"><div class="vn">#5</div><div><div class="vline"><span class="vlang en">EN</span><span class="vtok">38</span><code>The release owner approved the change, but the rollback steps are still missing from section four of the runbook, and the on-call engineer has not been notified about the maintenance window this weekend.</code></div><div class="vline"><span class="vlang ko">KO</span><span class="vtok">61</span><code>릴리스 담당자가 변경 사항을 승인했지만, 런북의 4절에는 여전히 롤백 절차가 누락되어 있으며, 당직 엔지니어에게는 이번 주말의 유지보수 시간대에 대한 통보가 이루어지지 않았습니다.</code></div><div class="vline"><span class="vlang vi">VI</span><span class="vtok">60</span><code>Người phụ trách phiên bản đã phê duyệt thay đổi này, nhưng các bước khôi phục vẫn chưa được bổ sung vào phần bốn của sổ tay vận hành, và kỹ sư trực ca vẫn chưa được thông báo về khung thời gian bảo trì vào cuối tuần này.</code></div><div class="vline"><span class="vlang tl">TL</span><span class="vtok">62</span><code>Inaprubahan ng may-ari ng release ang pagbabago, ngunit nawawala pa rin ang mga hakbang sa pagbalik sa dati sa seksyon apat ng runbook, at hindi pa naabisuhan ang on-call na inhinyero tungkol sa maintenance window ngayong katapusan ng linggo.</code></div></div></div>
+    <p class="note">
+      <b>이 표를 직접 확인하는 방법</b> —
+      위 문자열을 그대로 복사해 <code>platform.openai.com/tokenizer</code>에서
+      <code>o200k_base</code>로 세면 같은 토큰 수가 나온다.
+      토큰 계산은 같은 문자열에 대해 항상 같은 값을 낸다.
+    </p>
+  </div>
+
+  <div class="prov">
+    <dl>
+      <dt>측정 시각</dt><dd>2026-08-20 14:19:59</dd>
+      <dt>커밋</dt><dd><code>f058b80</code> · feat/#49-51 · uncommitted changes</dd>
+      <dt>토크나이저</dt><dd>JTokkit 1.1.0 · <code>EncodingType.O200K_BASE</code></dd>
+      <dt>번역</dt><dd>DeepL API <code>POST /v2/translate</code> (<code>source_lang=EN</code>)</dd>
+      <dt>LLM 호출</dt><dd>없음 (토큰 계산만)</dd>
+      <dt>측정 코드</dt>
+      <dd><code>src/test/java/com/borderless/proxy/benchmark/LanguageTokenBenchmarkTest.java</code></dd>
+    </dl>
+    <div class="repro">
+      <dl><dt>재현</dt><dd></dd></dl>
+      <pre>$env:RUN_PIPELINE_MEASUREMENT='true'
+.\gradlew.bat test --tests 'com.borderless.proxy.benchmark.LanguageTokenBenchmarkTest'</pre>
+    </div>
+  </div>
+</body>
+</html>
