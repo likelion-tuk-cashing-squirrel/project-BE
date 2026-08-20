@@ -75,8 +75,9 @@ class ProxyOrchestratorTest {
     private static final String ORIGINAL_TL = "Nagsulat ako ng liham para sa Proyekto Sigasig kahapon.";
 
     /**
-     * 실제 마스킹 토큰 형식이다. GlossaryService가 UUID 앞 12자리를 대문자로 잘라 쓴다.
-     * 문서에 흔히 적힌 {TERM_01}과 다르므로 테스트도 실제 형식으로 고정한다.
+     * DB에 남아 있는 구 형식이다. {@code GlossaryService}는 이제 PK 기반
+     * {@code {TERM_<id>}}를 만들지만 이전 토큰이 계속 들어온다.
+     * 오케스트레이터는 토큰 형식을 해석하지 않으므로 어느 형식이든 통과해야 한다.
      */
     private static final String TOKEN = "{TERM_3F9A2B7C1D0E}";
 

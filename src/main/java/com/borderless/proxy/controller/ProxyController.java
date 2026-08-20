@@ -1,7 +1,6 @@
 package com.borderless.proxy.controller;
 
 import com.borderless.proxy.dto.ProxyRequestDto;
-import com.borderless.proxy.dto.ProxyResponseDto;
 import com.borderless.proxy.proxy.dto.ProxyResponseDTO;
 import com.borderless.proxy.service.ProxyOrchestrator;
 import lombok.RequiredArgsConstructor;

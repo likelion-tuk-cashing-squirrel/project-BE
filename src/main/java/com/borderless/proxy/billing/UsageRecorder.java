@@ -82,9 +82,15 @@ public class UsageRecorder {
      * 재번역을 타지 않은 흐름은 {@code nativeAnswerText}가 {@code null}이라
      * {@code compareOutput}이 절감 0으로 처리한다.
      *
-     * <p>TODO 절감액에서 DeepL 번역 비용이 차감되지 않는다. 피벗 요청은 번역을 2회 호출하므로
-     *      실제 절감은 이 값보다 작고, 수수료도 그만큼 과다 산정된다.
-     *      billing 설정에 DeepL 문자 단가를 추가하고 차감할지 정책 확정이 필요하다.
+     * <p><b>DeepL 번역 비용은 차감하지 않는다. 미결 사항이 아니라 결정이다.</b>
+     * 이 지표가 재는 대상은 "사용자가 LLM 토큰을 얼마나 아꼈는가"이고, DeepL 요금은 그 절감을
+     * 만들기 위한 우리 쪽 원가다. 사용자에게 보여주는 절감 지표에 인프라 비용을 섞으면
+     * 지표의 의미가 흐려진다. 규모도 작다. 실측에서 타갈로그 장문 기준 DeepL 문자 수가
+     * 요청당 약 1,900자로, 같은 요청 토큰 절감액의 6~7% 수준이었다.
+     *
+     * <p>따라서 {@code savedCostUsd}는 <b>순이익이 아니다.</b> 수수료율 정책은 이 점을
+     * 전제로 삼아야 하고, 마진 관리는 별도 지표의 몫이다.
+     * 근거는 {@code docs/pipeline-measurement.md} 참고.
      */
     private CostBreakdown calculateCost(UsageRecordRequest request) {
         TokenDelta input = savingsCalculator.compareInput(request.originalText(), request.sentText());

@@ -19,8 +19,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class SystemPromptBuilderTest {
 
     /**
-     * 실제 형식이다. GlossaryService가 UUID 앞 12자리를 대문자로 잘라 쓴다.
-     * 문서와 주석에 흔히 적힌 {TERM_01}과 다르므로 테스트도 실제 형식으로 고정한다.
+     * DB에 남아 있는 구 형식이다. {@code GlossaryService}는 이제 PK 기반
+     * {@code {TERM_<id>}}를 만들지만, 이전에 UUID로 만들어진 토큰이 계속 들어온다.
+     * 빌더가 토큰 형식을 해석하지 않고 그대로 나열한다는 걸 이 형식으로 고정해 둔다.
      */
     private static final String TOKEN_A = "{TERM_3F9A2B7C1D0E}";
     private static final String TOKEN_B = "{TERM_88AA11BB22CC}";
