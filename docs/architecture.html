@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>시스템 아키텍처 · Borderless AI Proxy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #101114; --panel: #17181c; --panel-2: #1d1e23; --line: #2a2b31;
+    --text: #eceef0; --text-dim: #9a9ca3; --text-dimmer: #6e7078;
+    --accent: #7c8cff; --accent-dim: #7c8cff22;
+    --t1: #a78bfa; --t2: #38bdf8; --t3: #fb923c;
+    --good: #4ade80; --warn: #fbbf24; --off: #5a5c64;
+    --py: #ffd43b;
+    --mono: 'JetBrains Mono', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Pretendard', sans-serif; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 56px 24px 100px; }
+
+  header { margin-bottom: 20px; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 14px; }
+  h1 { font-size: clamp(26px, 4vw, 38px); font-weight: 900; margin-bottom: 12px; }
+  .lede { font-size: 15px; color: var(--text-dim); max-width: 720px; }
+  .lede code { font-family: var(--mono); font-size: 13px; color: var(--text); }
+
+  section { margin-top: 64px; }
+  h2 { font-size: 20px; font-weight: 800; margin-bottom: 6px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  h2 .num { font-family: var(--mono); font-size: 12px; color: var(--accent); background: var(--accent-dim); border-radius: 4px; padding: 3px 8px; font-weight: 700; }
+  .sub { font-size: 13.5px; color: var(--text-dim); margin-bottom: 24px; max-width: 760px; }
+  .sub code { font-family: var(--mono); font-size: 12.5px; color: var(--text); }
+
+  /* ---------- generic box ---------- */
+  .box { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+  .box .b-tag { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em; color: var(--accent); margin-bottom: 6px; text-transform: uppercase; }
+  .box .b-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .box .b-desc { font-size: 12.5px; color: var(--text-dim); }
+  .box .b-desc code { font-family: var(--mono); font-size: 11.5px; color: var(--text); }
+
+  /* ---------- 1. deployment ---------- */
+  .deploy { display: grid; grid-template-columns: 1fr auto 1.15fr; gap: 18px; align-items: stretch; }
+  @media (max-width: 860px) { .deploy { grid-template-columns: 1fr; } }
+  .zone { border: 1px dashed var(--line); border-radius: 14px; padding: 18px; background: #14151980; }
+  .zone-label { font-family: var(--mono); font-size: 10.5px; color: var(--text-dimmer); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 14px; }
+  .zone.host { border-color: #7c8cff44; }
+  .container-box { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; }
+  .container-box:last-child { margin-bottom: 0; }
+  .container-box.py { border-left-color: var(--py); }
+  .container-box .c-name { font-family: var(--mono); font-size: 12.5px; font-weight: 700; margin-bottom: 3px; }
+  .container-box .c-img { font-family: var(--mono); font-size: 10.5px; color: var(--text-dimmer); margin-bottom: 8px; }
+  .container-box .c-desc { font-size: 12px; color: var(--text-dim); }
+  .port { font-family: var(--mono); font-size: 10px; color: var(--good); border: 1px solid #4ade8055; background: #4ade8011; border-radius: 4px; padding: 1px 6px; margin-left: 6px; }
+  .link-col { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 10px; font-family: var(--mono); font-size: 11px; color: var(--text-dimmer); }
+  .link-col .a { color: var(--line); font-size: 18px; }
+  @media (max-width: 860px) { .link-col { flex-direction: row; } }
+  .ext-list { display: flex; flex-direction: column; gap: 10px; }
+  .ext { display: flex; align-items: center; gap: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 11px 14px; }
+  .ext .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .ext .e-name { font-family: var(--mono); font-size: 12px; font-weight: 700; width: 92px; flex-shrink: 0; }
+  .ext .e-desc { font-size: 12px; color: var(--text-dim); }
+
+  /* ---------- 2. layers ---------- */
+  .layer { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; margin-bottom: 10px; }
+  .layer-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+  .layer-head .l-name { font-size: 14.5px; font-weight: 800; }
+  .layer-head .l-pkg { font-family: var(--mono); font-size: 11px; color: var(--text-dimmer); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { font-family: var(--mono); font-size: 11.5px; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 7px 11px; color: var(--text); }
+  .chip span { color: var(--text-dimmer); font-size: 10.5px; display: block; font-family: 'Pretendard', sans-serif; margin-top: 2px; }
+  .chip.hi { border-color: var(--accent); background: var(--accent-dim); }
+  .chip.dark { color: var(--off); border-style: dashed; }
+  .chip.dark span { color: var(--off); }
+  .layer-arrow { text-align: center; font-family: var(--mono); color: var(--line); font-size: 16px; margin: 2px 0 8px; }
+
+  /* ---------- 3. pipeline ---------- */
+  .pipe { display: flex; flex-direction: column; align-items: center; }
+  .node { width: 100%; max-width: 560px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 15px 20px; }
+  .node .n-step { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 0.06em; margin-bottom: 5px; display: flex; justify-content: space-between; gap: 10px; }
+  .node .n-step .cls { color: var(--text-dimmer); }
+  .node .n-title { font-size: 15px; font-weight: 700; margin-bottom: 3px; }
+  .node .n-desc { font-size: 12.5px; color: var(--text-dim); }
+  .node .n-desc code { font-family: var(--mono); font-size: 11.5px; color: var(--text); }
+  .node.start { border-color: var(--accent); background: var(--accent-dim); }
+  .node.end { border-color: var(--good); }
+  .node.cond { border-left: 3px solid var(--warn); }
+  .node.off { border-style: dashed; opacity: 0.62; }
+  .node.off .n-step { color: var(--off); }
+  .arrow-down { font-family: var(--mono); color: var(--line); font-size: 20px; padding: 5px 0; }
+  .cond-tag { font-family: var(--mono); font-size: 10px; color: var(--warn); border: 1px solid #fbbf2455; background: #fbbf2411; border-radius: 4px; padding: 1px 6px; }
+  .skip-rail { width: 100%; max-width: 700px; border: 1px dashed #4ade8055; border-radius: 10px; background: #4ade8008; padding: 10px 14px; font-family: var(--mono); font-size: 11px; color: var(--good); text-align: center; margin: 10px 0; }
+
+  /* ---------- 4. tier table ---------- */
+  .tbl-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 660px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+  th { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); background: var(--panel-2); font-weight: 700; }
+  tr:last-child td { border-bottom: none; }
+  td.k { font-family: var(--mono); font-weight: 700; font-size: 12px; }
+  td.k.skip { color: var(--good); } td.k.t1 { color: var(--t1); }
+  td.k.t2 { color: var(--t2); } td.k.t3 { color: var(--t3); }
+  .y { color: var(--good); font-family: var(--mono); }
+  .n { color: var(--text-dimmer); font-family: var(--mono); }
+  .o { color: var(--off); font-family: var(--mono); }
+  td .note { color: var(--text-dim); font-size: 12px; }
+
+  /* ---------- 5. auth ---------- */
+  .seq { display: flex; flex-direction: column; gap: 8px; }
+  .seq-row { display: grid; grid-template-columns: 26px 1fr; gap: 12px; align-items: start; }
+  .seq-n { font-family: var(--mono); font-size: 10.5px; color: var(--accent); background: var(--accent-dim); border-radius: 5px; padding: 3px 0; text-align: center; margin-top: 2px; }
+  .seq-b { background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 10px 14px; font-size: 13px; }
+  .seq-b b { font-weight: 700; }
+  .seq-b .m { font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); }
+
+  /* ---------- 6. erd ---------- */
+  .erd { display: flex; flex-direction: column; align-items: center; gap: 0; }
+  .ent { width: 100%; max-width: 460px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .ent-h { background: var(--panel-2); padding: 9px 14px; font-family: var(--mono); font-size: 12px; font-weight: 700; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; gap: 8px; }
+  .ent-h .pkg { color: var(--text-dimmer); font-weight: 400; font-size: 10.5px; }
+  .ent-f { padding: 10px 14px; font-family: var(--mono); font-size: 11px; color: var(--text-dim); line-height: 1.8; }
+  .rel { font-family: var(--mono); font-size: 10.5px; color: var(--text-dimmer); padding: 8px 0; text-align: center; }
+  .rel b { color: var(--accent); font-weight: 700; }
+  .erd-split { display: flex; gap: 16px; width: 100%; max-width: 700px; }
+  @media (max-width: 720px) { .erd-split { flex-direction: column; align-items: center; } }
+  .erd-split > div { flex: 1; display: flex; flex-direction: column; align-items: center; }
+
+  /* ---------- 7. gaps ---------- */
+  .gaps { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+  .gap-card { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--warn); border-radius: 10px; padding: 14px 16px; }
+  .gap-card.dark { border-left-color: var(--off); }
+  .gap-card .g-t { font-size: 13.5px; font-weight: 700; margin-bottom: 5px; }
+  .gap-card .g-d { font-size: 12.5px; color: var(--text-dim); }
+  .gap-card .g-d code { font-family: var(--mono); font-size: 11.5px; color: var(--text); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 22px; font-family: var(--mono); font-size: 10.5px; color: var(--text-dimmer); }
+  .legend i { display: inline-block; width: 18px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 6px; }
+
+  footer { margin-top: 72px; font-family: var(--mono); font-size: 11px; color: var(--text-dimmer); border-top: 1px solid var(--line); padding-top: 20px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">캐싱스쿼럴 · Borderless AI Proxy</div>
+    <h1>시스템 아키텍처</h1>
+    <p class="lede">
+      Spring Boot 4.1.0(Java 21) 프록시 서버와 타갈로그 형태소 분석 FastAPI 사이드카, 두 컨테이너로 구성된다.
+      이 문서는 <code>src/main/java</code>와 <code>fastapi/app</code>의 실제 구현을 기준으로 작성했다.
+      기획 단계 산출물인 <code>pipeline-flow.html</code>과 다른 부분이 있으면 이 문서가 맞다.
+    </p>
+  </header>
+
+  <!-- ================= 1. 배포 토폴로지 ================= -->
+  <section>
+    <h2><span class="num">01</span> 배포 토폴로지</h2>
+    <p class="sub">
+      GitHub Actions가 두 이미지를 빌드해 Docker Hub에 올리고, EC2에 SSH로 접속해 <code>docker run</code>으로 교체한다.
+      시크릿은 GitHub Secrets → EC2 환경변수로 주입된다. 로컬에서는 루트 <code>.env</code>를 <code>build.gradle</code>이 직접 파싱해
+      <code>bootRun</code>/<code>test</code>에 넣는다.
+    </p>
+
+    <div class="deploy">
+      <div class="zone host">
+        <div class="zone-label">AWS EC2 · single host</div>
+
+        <div class="container-box">
+          <div class="c-name">borderless-proxy <span class="port">8080</span></div>
+          <div class="c-img">eclipse-temurin:21-jre-alpine · non-root</div>
+          <div class="c-desc">Spring MVC + Thymeleaf. 가상 스레드 활성화. 파이프라인 전체를 여기서 조율한다.</div>
+        </div>
+
+        <div class="container-box py">
+          <div class="c-name">borderless-fastapi <span class="port">8000</span></div>
+          <div class="c-img">python:3.12-slim · uvicorn</div>
+          <div class="c-desc">타갈로그 형태소 분석 사이드카. 인증 없음(같은 호스트 전제).</div>
+        </div>
+      </div>
+
+      <div class="link-col">
+        <div class="a">→</div>
+        <div>HTTPS</div>
+        <div class="a">→</div>
+      </div>
+
+      <div class="zone">
+        <div class="zone-label">External · managed</div>
+        <div class="ext-list">
+          <div class="ext">
+            <div class="dot" style="background:var(--good)"></div>
+            <div class="e-name">MySQL</div>
+            <div class="e-desc">JPA / Hibernate <code>ddl-auto: update</code></div>
+          </div>
+          <div class="ext">
+            <div class="dot" style="background:var(--accent)"></div>
+            <div class="e-name">OpenAI</div>
+            <div class="e-desc"><code>/chat/completions</code> · 30s · retry 2</div>
+          </div>
+          <div class="ext">
+            <div class="dot" style="background:var(--t2)"></div>
+            <div class="e-name">DeepL</div>
+            <div class="e-desc"><code>/v2/translate</code> · 10s · retry 2</div>
+          </div>
+          <div class="ext">
+            <div class="dot" style="background:var(--warn)"></div>
+            <div class="e-name">Kakao</div>
+            <div class="e-desc">OAuth2 인가 / 토큰 / 사용자 정보</div>
+          </div>
+          <div class="ext">
+            <div class="dot" style="background:var(--text-dimmer)"></div>
+            <div class="e-name">Docker Hub</div>
+            <div class="e-desc">CI가 푸시, EC2가 <code>docker pull</code></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 2. 레이어 / 패키지 ================= -->
+  <section>
+    <h2><span class="num">02</span> 레이어 &amp; 패키지 구성</h2>
+    <p class="sub">
+      루트 패키지는 <code>com.borderless.proxy</code>. 도메인별 수직 분할(routing / glossary / billing / member)에
+      횡단 관심사(client / global)를 얹은 형태다. 점선 흐린 박스는 코드는 있으나 현재 실행 경로에서 빠져 있는 컴포넌트다.
+    </p>
+
+    <div class="layer">
+      <div class="layer-head"><span class="l-name">Web</span><span class="l-pkg">controller · glossary.controller</span></div>
+      <div class="chips">
+        <div class="chip hi">ProxyController<span>POST /api/proxy</span></div>
+        <div class="chip">UsageSummaryController<span>GET /api/proxy/summary</span></div>
+        <div class="chip">GlossaryController<span>/api/glossary/terms</span></div>
+        <div class="chip">PageController<span>Thymeleaf · GET / , /login</span></div>
+      </div>
+    </div>
+    <div class="layer-arrow">↓</div>
+
+    <div class="layer">
+      <div class="layer-head"><span class="l-name">Orchestration</span><span class="l-pkg">service</span></div>
+      <div class="chips">
+        <div class="chip hi">ProxyOrchestrator<span>STEP 01~06 + 과금 기록을 순차 조율하는 단일 파사드</span></div>
+      </div>
+    </div>
+    <div class="layer-arrow">↓</div>
+
+    <div class="layer">
+      <div class="layer-head"><span class="l-name">Domain</span><span class="l-pkg">routing · glossary · prompt · billing</span></div>
+      <div class="chips">
+        <div class="chip">CostRouter<span>토큰 수 → 티어 결정</span></div>
+        <div class="chip">TokenCalculator<span>JTokkit · o200k_base 고정</span></div>
+        <div class="chip">LanguageDetector<span>optimaize · 내장 프로파일</span></div>
+        <div class="chip">TermMasker / TermRestorer<span>긴 용어 우선 치환 · 역치환</span></div>
+        <div class="chip">GlossaryService<span>용어집 CRUD · {TERM_PK} 발급</span></div>
+        <div class="chip">SystemPromptBuilder<span>피벗·보존·힌트 지시문 조립</span></div>
+        <div class="chip">UsageRecorder<span>@Transactional 기록 진입점</span></div>
+        <div class="chip">TokenSavingsCalculator<span>전후 토큰 델타</span></div>
+        <div class="chip">CostCalculator<span>USD 환산 · scale 6</span></div>
+        <div class="chip">UsageSummaryService<span>누적 절감 합계 조회</span></div>
+      </div>
+    </div>
+    <div class="layer-arrow">↓</div>
+
+    <div class="layer">
+      <div class="layer-head"><span class="l-name">Outbound clients</span><span class="l-pkg">client</span> <span class="l-pkg">— 인터페이스 + WebClient 구현</span></div>
+      <div class="chips">
+        <div class="chip">LlmClient ← OpenAiLlmClient<span>재시도: 429 / 5xx만. 쿼터 초과·형식 오류는 즉시 실패</span></div>
+        <div class="chip">TranslationClient ← DeepLTranslationClient<span>free/pro 엔드포인트 불일치 경고 · 456 = 쿼터</span></div>
+        <div class="chip dark">MorphologyClient ← FastApiMorphologyClient<span>재시도 없음 · 실패 시 빈 힌트로 폴백</span></div>
+      </div>
+    </div>
+    <div class="layer-arrow">↓</div>
+
+    <div class="layer">
+      <div class="layer-head"><span class="l-name">Persistence</span><span class="l-pkg">member · glossary · proxy · billing.repository</span></div>
+      <div class="chips">
+        <div class="chip">MemberRepository</div>
+        <div class="chip">GlossaryRepository</div>
+        <div class="chip">GlossaryTermRepository</div>
+        <div class="chip">ProxyRequestRepository</div>
+        <div class="chip">UsageLogRepository<span>절감 합계 집계 쿼리 2개</span></div>
+      </div>
+    </div>
+    <div class="layer-arrow">↓</div>
+
+    <div class="layer">
+      <div class="layer-head"><span class="l-name">Cross-cutting</span><span class="l-pkg">global · client.config</span></div>
+      <div class="chips">
+        <div class="chip">SecurityConfig<span>카카오 OAuth2 · 세션</span></div>
+        <div class="chip">CustomOAuth2UserService<span>Member upsert · memberId 속성 주입</span></div>
+        <div class="chip">WebClientConfig<span>WebClient 3개 · 4MB codec</span></div>
+        <div class="chip">GlobalExceptionHandler<span>IllegalArgument → 400, 그 외 → 500</span></div>
+        <div class="chip dark">AsyncConfig<span>@EnableAsync만 있고 @Async 사용처 없음</span></div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><i style="border-color:var(--accent)"></i>주 요청 경로</span>
+      <span><i style="border-color:var(--off); border-top-style:dashed"></i>구현됐으나 현재 실행 경로 밖</span>
+    </div>
+  </section>
+
+  <!-- ================= 3. 요청 파이프라인 ================= -->
+  <section>
+    <h2><span class="num">03</span> 요청 파이프라인 · <span style="font-family:var(--mono);font-size:14px;font-weight:600">POST /api/proxy</span></h2>
+    <p class="sub">
+      <code>ProxyOrchestrator.process()</code> 하나가 전 구간을 동기적으로 처리한다. WebClient 호출은 모두
+      <code>.block()</code>으로 받고, 처리량은 리액티브 조합이 아니라 가상 스레드에 의존한다.
+      외부 호출 3개는 직렬이다(형태소 분석과 피벗을 병렬화할 여지는 있으나 하지 않는다).
+      <span class="cond-tag">조건부</span> 표시가 붙은 단계는 티어에 따라 건너뛴다.
+    </p>
+
+    <div class="pipe">
+      <div class="node start">
+        <div class="n-step"><span>ENTRY</span><span class="cls">ProxyController</span></div>
+        <div class="n-title">인증된 요청 수신</div>
+        <div class="n-desc"><code>{ "text": "..." }</code> + <code>@AuthenticationPrincipal</code>에서 <code>memberId</code> 추출</div>
+      </div>
+      <div class="arrow-down">↓</div>
+
+      <div class="node">
+        <div class="n-step"><span>STEP 01 · ROUTING</span><span class="cls">CostRouter</span></div>
+        <div class="n-title">토큰 계산 → 언어 감지 → 티어 결정</div>
+        <div class="n-desc">
+          토큰 수가 <code>routing.token-threshold(50)</code> 미만이면 언어 감지도 하지 않고 <code>SKIP</code>.
+          신뢰도가 <code>0.7</code> 미만이면 오판으로 보고 <code>TIER_1</code>로 폴백. 텍스트는 변형하지 않고 판단만 한다.
+        </div>
+      </div>
+      <div class="arrow-down">↓</div>
+
+      <div class="skip-rail">SKIP인 경우 02 · 03-B · 03 · 05 전부 우회 → 원문 그대로 STEP 04로 직행</div>
+
+      <div class="node cond">
+        <div class="n-step"><span>STEP 02 · MASKING <span class="cond-tag">SKIP 제외</span></span><span class="cls">TermMasker</span></div>
+        <div class="n-title">용어집 마스킹</div>
+        <div class="n-desc">회원 용어집의 원어 표기를 <code>{TERM_&lt;PK&gt;}</code>로 치환. 긴 용어부터 처리해 부분 겹침을 피한다. 사전(token→translation)은 STEP 06까지 들고 간다.</div>
+      </div>
+      <div class="arrow-down">↓</div>
+
+      <div class="node cond off">
+        <div class="n-step"><span>STEP 03-B · MORPHOLOGY <span class="cond-tag">TIER_3 &amp; inject-hint</span></span><span class="cls">FastApiMorphologyClient</span></div>
+        <div class="n-title">형태소 힌트 조회 — 현재 비활성</div>
+        <div class="n-desc">
+          피벗보다 <b>먼저</b> 호출한다(영어로 바뀐 뒤엔 어근·접사를 찾을 수 없다). 마스킹된 텍스트를 넘기고, 사이드카가 <code>{TERM_x}</code>를 분석 대상에서 제외한다.
+          <code>app.morphology.inject-hint: false</code>라 실측상 역효과(입력 +162 토큰, 답변에 접사 노출)를 근거로 호출 자체를 생략한다.
+        </div>
+      </div>
+      <div class="arrow-down">↓</div>
+
+      <div class="node cond">
+        <div class="n-step"><span>STEP 03 · PIVOT <span class="cond-tag">TIER_2 / TIER_3</span></span><span class="cls">DeepLTranslationClient</span></div>
+        <div class="n-title">원어 → 영어 피벗</div>
+        <div class="n-desc">감지 언어에서 <code>EN</code>으로 번역. TIER_1은 이 구간에서 DeepL을 아예 타지 않는다.</div>
+      </div>
+      <div class="arrow-down">↓</div>
+
+      <div class="node">
+        <div class="n-step"><span>STEP 04 · LLM</span><span class="cls">SystemPromptBuilder → OpenAiLlmClient</span></div>
+        <div class="n-title">시스템 프롬프트 조립 + 추론 1회</div>
+        <div class="n-desc">
+          치환된 토큰이 없고 지시할 내용도 없으면 빌더가 빈 문자열을 반환하고 system 메시지를 생략한다.
+          지킬 게 없는데 지시를 붙이면 입력 토큰만 늘어 절감 목적에 역행하기 때문이다.
+          과금용 <code>sentTextToLlm</code>에는 시스템 프롬프트를 <b>포함</b>한다(프록시가 얹은 비용도 지표에 남긴다).
+        </div>
+      </div>
+      <div class="arrow-down">↓</div>
+
+      <div class="node cond">
+        <div class="n-step"><span>STEP 05 · RE-TRANSLATE <span class="cond-tag">피벗한 경우만</span></span><span class="cls">DeepLTranslationClient</span></div>
+        <div class="n-title">영어 답변 → 원어 재번역</div>
+        <div class="n-desc"><code>requiresRetranslation() == requiresPivot()</code>. 되돌릴 대상이 생긴 요청만 수행한다.</div>
+      </div>
+      <div class="arrow-down">↓</div>
+
+      <div class="node">
+        <div class="n-step"><span>STEP 06 · UNMASK</span><span class="cls">TermRestorer</span></div>
+        <div class="n-title">마스킹 복원</div>
+        <div class="n-desc">사전을 역방향으로 치환. 사전이 비어 있으면 무연산.</div>
+      </div>
+      <div class="arrow-down">↓</div>
+
+      <div class="node">
+        <div class="n-step"><span>BILLING · try/catch</span><span class="cls">UsageRecorder → CostCalculator</span></div>
+        <div class="n-title">절감량 산출 + 이력 저장</div>
+        <div class="n-desc">
+          입력은 원문 vs 실제 전송문, 출력은 재번역 원어 답변을 기준으로 비교한다.
+          <b>기록 실패는 응답을 막지 않는다</b> — 로그만 남기고 절감 지표를 0으로 내려보낸다.
+        </div>
+      </div>
+      <div class="arrow-down">↓</div>
+
+      <div class="node end">
+        <div class="n-step"><span>RESPONSE</span><span class="cls">ProxyResponseDTO</span></div>
+        <div class="n-title">답변 + 이번 절감 + 누적 절감</div>
+        <div class="n-desc">누적치는 <code>UsageSummaryService</code>의 집계 쿼리 2개로 매 요청 조회한다(캐시 없음).</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 4. 티어 매트릭스 ================= -->
+  <section>
+    <h2><span class="num">04</span> 라우팅 티어 매트릭스</h2>
+    <p class="sub">
+      분기 조건은 전부 <code>RoutingTier</code> enum의 플래그에 들어 있다. 오케스트레이터에는 언어 이름이 등장하지 않는다.
+      매핑에 없는 언어는 가장 안전한 <code>TIER_1</code>로 떨어진다.
+    </p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>티어</th><th>진입 조건</th><th>마스킹</th><th>형태소</th><th>피벗</th><th>재번역</th><th>외부 호출</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="k skip">SKIP</td>
+            <td><span class="note">토큰 &lt; 50 (언어 감지 안 함)</span></td>
+            <td class="n">—</td><td class="n">—</td><td class="n">—</td><td class="n">—</td>
+            <td><span class="note">OpenAI 1회</span></td>
+          </tr>
+          <tr>
+            <td class="k t1">TIER_1</td>
+            <td><span class="note"><code>en</code> · 또는 신뢰도 &lt; 0.7 폴백</span></td>
+            <td class="y">✓</td><td class="n">—</td><td class="n">—</td><td class="n">—</td>
+            <td><span class="note">OpenAI 1회</span></td>
+          </tr>
+          <tr>
+            <td class="k t2">TIER_2</td>
+            <td><span class="note"><code>vi</code> 베트남어 — 비용 문제</span></td>
+            <td class="y">✓</td><td class="n">—</td><td class="y">✓</td><td class="y">✓</td>
+            <td><span class="note">DeepL 2회 + OpenAI 1회</span></td>
+          </tr>
+          <tr>
+            <td class="k t3">TIER_3</td>
+            <td><span class="note"><code>tl</code> 타갈로그 — 비용 + 이해력 문제</span></td>
+            <td class="y">✓</td><td class="o">off</td><td class="y">✓</td><td class="y">✓</td>
+            <td><span class="note">DeepL 2회 + OpenAI 1회 <span class="o">(+사이드카 1회, 비활성)</span></span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ================= 5. 인증 ================= -->
+  <section>
+    <h2><span class="num">05</span> 인증 흐름 · 카카오 OAuth2</h2>
+    <p class="sub">
+      세션 기반이다. JWT는 없다. <code>/login</code>과 <code>/css/**</code>만 공개고 나머지 전부
+      <code>authenticated()</code> — <code>/api/**</code>도 포함된다.
+    </p>
+
+    <div class="seq">
+      <div class="seq-row"><div class="seq-n">1</div><div class="seq-b">브라우저가 <b>GET /login</b> → Thymeleaf 로그인 페이지 <span class="m">PageController</span></div></div>
+      <div class="seq-row"><div class="seq-n">2</div><div class="seq-b">카카오 인가 요청 → 콜백 <span class="m">/login/oauth2/code/kakao</span></div></div>
+      <div class="seq-row"><div class="seq-n">3</div><div class="seq-b">Spring Security가 토큰 교환 후 사용자 정보 조회 <span class="m">kapi.kakao.com/v2/user/me</span></div></div>
+      <div class="seq-row"><div class="seq-n">4</div><div class="seq-b"><b>CustomOAuth2UserService</b>가 <code>(kakao, providerId)</code>로 Member를 upsert <span class="m">nativeLang = "ko"</span></div></div>
+      <div class="seq-row"><div class="seq-n">5</div><div class="seq-b">속성 맵을 복사해 <b>memberId</b>를 주입한 <code>DefaultOAuth2User</code> 반환 <span class="m">모든 컨트롤러가 이 값으로 DB 식별자를 얻는다</span></div></div>
+      <div class="seq-row"><div class="seq-n">6</div><div class="seq-b">세션 발급 → <code>defaultSuccessUrl("/")</code>. 이후 요청은 <b>JSESSIONID</b>로 인증 <span class="m">로그아웃 시 세션 무효화 + 쿠키 삭제</span></div></div>
+    </div>
+  </section>
+
+  <!-- ================= 6. 데이터 모델 ================= -->
+  <section>
+    <h2><span class="num">06</span> 데이터 모델</h2>
+    <p class="sub">
+      연관은 전부 <code>LAZY</code>이고 모든 <code>@JoinColumn</code>이 <code>ConstraintMode.NO_CONSTRAINT</code>다 — 물리 FK가 없다.
+      <code>ProxyRequest</code>·<code>UsageLog</code>는 <code>proxy.entity</code>에 있지만 <code>UsageLogRepository</code>는
+      <code>billing.repository</code>에 있다(의도된 패키지 교차).
+    </p>
+
+    <div class="erd">
+      <div class="ent">
+        <div class="ent-h"><span>Member</span><span class="pkg">member.entity · table member</span></div>
+        <div class="ent-f">id · provider(enum) · providerId · name · nativeLang · createdAt(@CreatedDate)</div>
+      </div>
+
+      <div class="rel">├───────────── <b>1:1</b> ─────────────┴───────────── <b>1:N</b> ─────────────┤</div>
+
+      <div class="erd-split">
+        <div>
+          <div class="ent">
+            <div class="ent-h"><span>Glossary</span><span class="pkg">unique member_id</span></div>
+            <div class="ent-f">id · member(1:1) · namespace · description</div>
+          </div>
+          <div class="rel">↓ <b>1:N</b></div>
+          <div class="ent">
+            <div class="ent-h"><span>GlossaryTerm</span><span class="pkg">table glossary_term</span></div>
+            <div class="ent-f">id · glossary(N:1) · sourceTerm · maskedToken(len 50) · translation</div>
+          </div>
+        </div>
+
+        <div>
+          <div class="ent">
+            <div class="ent-h"><span>ProxyRequest</span><span class="pkg">table proxy_request</span></div>
+            <div class="ent-f">id · member(N:1) · originalText(TEXT) · sourceLang · isPivoted · routeDecision · status(enum) · createdAt</div>
+          </div>
+          <div class="rel">↓ <b>1:N</b></div>
+          <div class="ent">
+            <div class="ent-h"><span>UsageLog</span><span class="pkg">table usage_log</span></div>
+            <div class="ent-f">id · request(N:1) · inputTokens · outputTokens · savedTokens · costUsd · savedCostUsd · feeUsd · latencyMs · modelName <span style="color:var(--text-dimmer)">— 금액은 precision 10 / scale 6, billedUsd() = cost + fee</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 7. 알려진 공백 ================= -->
+  <section>
+    <h2><span class="num">07</span> 알려진 공백 · 다이어그램에 없는 것</h2>
+    <p class="sub">아직 구현되지 않았거나 의도적으로 꺼둔 지점. 위 그림에 컴포넌트로 그리지 않은 이유가 여기 있다.</p>
+
+    <div class="gaps">
+      <div class="gap-card dark">
+        <div class="g-t">형태소 힌트 주입 (의도적 비활성)</div>
+        <div class="g-d">사이드카·클라이언트·프롬프트 조립까지 다 있으나 <code>inject-hint: false</code>로 실행 경로에서 빠져 있다. 근거는 <code>docs/pipeline-measurement.md</code>.</div>
+      </div>
+      <div class="gap-card">
+        <div class="g-t">실패 이력 적재 경로 없음</div>
+        <div class="g-d"><code>ProxyRequestStatus.FAILED</code>는 선언만 되어 있고 기록되지 않는다. <code>UsageRecorder</code>는 <code>SUCCESS</code>를 하드코딩하고, 실패는 저장 전에 던져진다.</div>
+      </div>
+      <div class="gap-card">
+        <div class="g-t">외부 API 예외 전용 핸들러 없음</div>
+        <div class="g-d"><code>GlobalExceptionHandler</code>에 <code>ExternalApiException</code> 처리가 없어 DeepL/OpenAI 실패가 일반 500으로 나간다.</div>
+      </div>
+      <div class="gap-card">
+        <div class="g-t">API 인증 실패 응답이 HTML</div>
+        <div class="g-d"><code>/api/**</code> 전용 <code>AuthenticationEntryPoint</code>가 없어 미인증 API 호출이 401 JSON 대신 로그인 페이지로 리다이렉트된다. CSRF는 임시 비활성 상태.</div>
+      </div>
+      <div class="gap-card">
+        <div class="g-t">마스킹 토큰의 번역 보호 미완</div>
+        <div class="g-d"><code>TranslationRequest.preserveMaskedTokens</code>가 설정되지 않아 DeepL <code>tag_handling</code>으로 <code>{TERM_x}</code>를 보호하는 규약이 끝까지 연결되지 않았다(<code>TranslationRequest.java</code> TODO).</div>
+      </div>
+      <div class="gap-card">
+        <div class="g-t">요청 본문 검증 없음</div>
+        <div class="g-d"><code>ProxyRequestDto</code>에 <code>@NotBlank</code>가 없다. 빈 텍스트는 <code>LlmRequest.of</code>에서 터져 400으로 나간다.</div>
+      </div>
+      <div class="gap-card dark">
+        <div class="g-t">비동기 · 캐시 · 스케줄링 미사용</div>
+        <div class="g-d"><code>AsyncConfig</code>는 <code>@EnableAsync</code>만 있고 <code>@Async</code> 사용처가 없다. <code>@Scheduled</code>/<code>@Cacheable</code>도 없다.</div>
+      </div>
+      <div class="gap-card">
+        <div class="g-t">스키마 마이그레이션 도구 없음</div>
+        <div class="g-d">운영에서도 <code>ddl-auto: update</code>로 스키마가 배포와 함께 자동 반영된다. Flyway 도입 전까지는 되돌릴 수 없는 변경에 주의가 필요하다.</div>
+      </div>
+      <div class="gap-card">
+        <div class="g-t">TIER_3 재번역 대상 언어</div>
+        <div class="g-d">재번역이 DeepL에 <code>TL</code>을 대상으로 요청한다. DeepL 지원 대상 언어 목록에 타갈로그가 없어 이 구간이 런타임에 실패할 수 있다. 코드에 예외 처리는 없다.</div>
+      </div>
+    </div>
+  </section>
+
+  <footer>캐싱스쿼럴 · Borderless AI Proxy · LIKELION TRACK HACKATHON 2026 · src/main/java &amp; fastapi/app 기준 아키텍처</footer>
+
+</div>
+</body>
+</html>

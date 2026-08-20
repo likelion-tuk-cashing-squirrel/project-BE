@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>팀 단위 사용 플로우 · Borderless AI Proxy</title>
+
+<link rel="stylesheet" as="style" crossorigin
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: #101114; --panel: #17181c; --panel-2: #1d1e23; --line: #2a2b31;
+    --text: #eceef0; --text-dim: #9a9ca3;
+    --accent: #7c8cff; --accent-dim: #7c8cff22;
+    --t1: #7c8cff; --t2: #38bdf8; --t3: #fb923c;
+    --good: #4ade80; --bad: #f87171;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
+            system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); line-height: 1.65; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 52px 24px 100px; }
+  .num, code { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+  /* ── header ── */
+  header { margin-bottom: 14px; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 13px; }
+  h1 { font-size: clamp(26px, 4vw, 36px); font-weight: 900; letter-spacing: -0.015em; margin-bottom: 12px; }
+  .lede { font-size: 15px; color: var(--text-dim); max-width: 620px; }
+  nav.docnav { display: flex; gap: 8px; flex-wrap: wrap; margin: 26px 0 0; }
+  nav.docnav a {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.03em;
+    border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 14px; color: var(--text-dim);
+  }
+  nav.docnav a:hover { color: var(--accent); border-color: var(--accent); text-decoration: none; }
+  nav.docnav a[aria-current="page"] { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+
+  /* ── section ── */
+  section { margin-top: 64px; }
+  .sec-num { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 0.1em; margin-bottom: 9px; }
+  h2 { font-size: 21px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 8px; }
+  .sec-lede { font-size: 14px; color: var(--text-dim); margin-bottom: 26px; max-width: 640px; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px 24px; }
+  .p-title { font-size: 14.5px; font-weight: 700; margin-bottom: 4px; }
+  .p-desc { font-size: 12.8px; color: var(--text-dim); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 820px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+  /* ── 01 프록시 대비 다이어그램 ── */
+  .wire { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 24px; }
+  .wire + .wire { margin-top: 12px; }
+  .wire.bad { border-color: #f8717155; }
+  .wire.good { border-color: #4ade8055; }
+  .wire-tag {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em;
+    padding: 3px 9px; border-radius: 4px; display: inline-block; margin-bottom: 18px;
+  }
+  .wire.bad .wire-tag  { color: var(--bad); background: #f8717118; border: 1px solid #f8717155; }
+  .wire.good .wire-tag { color: var(--good); background: #4ade8018; border: 1px solid #4ade8055; }
+
+  .chain { display: flex; align-items: stretch; gap: 0; flex-wrap: wrap; }
+  .box {
+    border: 1px solid var(--line); background: var(--panel-2); border-radius: 9px;
+    padding: 13px 16px; min-width: 118px; text-align: center;
+  }
+  .box .b-name { font-size: 13px; font-weight: 600; }
+  .box .b-sub { font-family: var(--mono); font-size: 10px; color: var(--text-dim); margin-top: 3px; letter-spacing: 0.02em; }
+  .box.hub { border-color: var(--accent); background: var(--accent-dim); }
+  .box.hub .b-name { color: var(--accent); }
+  .link { display: flex; align-items: center; padding: 0 6px; font-family: var(--mono); color: var(--line); font-size: 18px; }
+  .link.hot { color: var(--good); }
+  .wire-note { font-size: 12.8px; color: var(--text-dim); margin-top: 18px; padding-top: 15px; border-top: 1px solid var(--line); }
+  .wire.bad .wire-note b { color: var(--bad); font-weight: 600; }
+  .wire.good .wire-note b { color: var(--good); font-weight: 600; }
+
+  /* ── 02 팀원 카드 ── */
+  .person { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; border-top: 3px solid var(--line); }
+  .person.p-t1 { border-top-color: var(--t1); }
+  .person.p-t2 { border-top-color: var(--t2); }
+  .person.p-t3 { border-top-color: var(--t3); }
+  .pr-name { font-size: 16px; font-weight: 700; }
+  .pr-role { font-size: 12.5px; color: var(--text-dim); margin-bottom: 14px; }
+  .pr-meta { display: grid; gap: 7px; font-size: 12.5px; }
+  .pr-meta div { display: flex; justify-content: space-between; gap: 10px; }
+  .pr-meta span:first-child { color: var(--text-dim); }
+  .pr-meta .num { font-size: 12px; }
+
+  .chip {
+    font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+    padding: 2px 8px; border-radius: 20px; border: 1px solid;
+  }
+  .c-t1 { color: var(--t1); border-color: var(--t1); background: #7c8cff22; }
+  .c-t2 { color: var(--t2); border-color: var(--t2); background: #38bdf822; }
+  .c-t3 { color: var(--t3); border-color: var(--t3); background: #fb923c22; }
+  .c-skip { color: #a5a7ae; border-color: #4b4d55; background: #4b4d5522; }
+
+  /* ── 공유 / 비공유 ── */
+  .share-yes { border-left: 3px solid var(--good); }
+  .share-no  { border-left: 3px solid var(--bad); }
+  .share-h { display: flex; align-items: center; gap: 9px; margin-bottom: 8px; }
+  .share-h .mark { font-family: var(--mono); font-size: 13px; font-weight: 700; }
+  .share-yes .mark { color: var(--good); }
+  .share-no .mark { color: var(--bad); }
+  ul.tight { list-style: none; margin-top: 12px; display: grid; gap: 8px; }
+  ul.tight li { font-size: 12.8px; color: var(--text-dim); padding-left: 14px; position: relative; }
+  ul.tight li::before { content: '·'; position: absolute; left: 3px; color: var(--accent); }
+
+  /* ── 03 세팅 스텝 ── */
+  .setup { display: grid; gap: 0; }
+  .setup li { list-style: none; display: grid; grid-template-columns: 34px 1fr; gap: 14px; padding: 16px 0; border-top: 1px solid var(--line); }
+  .setup li:first-child { border-top: 0; padding-top: 0; }
+  .st-no {
+    font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--accent);
+    background: var(--accent-dim); border: 1px solid #7c8cff44; border-radius: 7px;
+    height: 28px; display: grid; place-items: center;
+  }
+  .st-name { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
+  .st-desc { font-size: 12.8px; color: var(--text-dim); }
+
+  /* ── 04 탭 + 트레이스 ── */
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tab {
+    font-family: var(--sans); font-size: 13px; cursor: pointer;
+    background: var(--panel); border: 1px solid var(--line); color: var(--text-dim);
+    border-radius: 9px; padding: 10px 16px; display: flex; align-items: center; gap: 9px;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .tab:hover { color: var(--text); border-color: var(--text-dim); }
+  .tab[aria-selected="true"] { color: var(--text); background: var(--panel-2); }
+  .tab[data-tier="TIER_1"][aria-selected="true"] { border-color: var(--t1); box-shadow: inset 0 -2px 0 var(--t1); }
+  .tab[data-tier="TIER_2"][aria-selected="true"] { border-color: var(--t2); box-shadow: inset 0 -2px 0 var(--t2); }
+  .tab[data-tier="TIER_3"][aria-selected="true"] { border-color: var(--t3); box-shadow: inset 0 -2px 0 var(--t3); }
+
+  .trace-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding-bottom: 18px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+  .trace-head .th-q { font-family: var(--mono); font-size: 12px; color: var(--text); }
+
+  ol.trace { list-style: none; }
+  ol.trace li { display: grid; grid-template-columns: 62px 1fr; gap: 14px; padding: 14px 0; border-top: 1px solid #22232860; }
+  ol.trace li:first-child { border-top: 0; }
+  ol.trace li.off { opacity: .35; }
+  .tr-step { font-family: var(--mono); font-size: 10.5px; color: var(--accent); letter-spacing: 0.04em; padding-top: 3px; }
+  ol.trace li.off .tr-step { color: var(--text-dim); }
+  .tr-name { font-size: 13.5px; font-weight: 600; margin-bottom: 5px; }
+  .tr-text { font-family: var(--mono); font-size: 11.5px; color: var(--text-dim); line-height: 1.7; word-break: break-word; }
+  .tr-text mark { background: var(--accent-dim); color: var(--accent); padding: 1px 4px; border-radius: 3px; }
+  .tr-text .ok { background: #4ade8018; color: var(--good); padding: 1px 4px; border-radius: 3px; }
+  .tr-who { font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); margin-top: 5px; }
+
+  /* ── 05 없었다면 ── */
+  .fail { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; border-top: 3px solid var(--bad); }
+  .fail .f-q { font-size: 13.5px; font-weight: 700; margin-bottom: 10px; }
+  .fail .f-a { font-size: 12.8px; color: var(--text-dim); }
+  .fail .f-a b { color: var(--bad); font-weight: 600; }
+
+  /* ── 주의 박스 ── */
+  .warn { background: #fb923c10; border: 1px solid #fb923c44; border-left: 3px solid var(--t3); border-radius: 10px; padding: 18px 22px; margin-top: 14px; }
+  .warn .w-h { font-size: 13.5px; font-weight: 700; color: var(--t3); margin-bottom: 7px; }
+  .warn p { font-size: 12.8px; color: var(--text-dim); }
+  .warn p + p { margin-top: 8px; }
+
+  /* ── 06 컷 리스트 ── */
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    font-family: var(--mono); font-size: 10.5px; font-weight: 500; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.07em; text-align: left;
+    padding: 0 14px 11px; border-bottom: 1px solid var(--line);
+  }
+  thead th.r { text-align: right; }
+  tbody td { padding: 13px 14px; font-size: 12.8px; border-bottom: 1px solid #22232840; vertical-align: top; }
+  tbody td.r { text-align: right; font-family: var(--mono); color: var(--text-dim); white-space: nowrap; }
+  tbody td .cut-t { font-weight: 600; color: var(--text); display: block; margin-bottom: 3px; }
+  tbody td .cut-d { color: var(--text-dim); }
+  tbody tr.key td { background: var(--accent-dim); }
+
+  .quote {
+    margin-top: 14px; background: var(--panel-2); border: 1px solid var(--line);
+    border-left: 3px solid var(--accent); border-radius: 10px; padding: 20px 24px;
+    font-size: 15px; line-height: 1.75;
+  }
+  .quote .q-label { font-family: var(--mono); font-size: 10.5px; color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase; display: block; margin-bottom: 10px; }
+
+  footer { margin-top: 66px; border-top: 1px solid var(--line); padding-top: 20px; font-family: var(--mono); font-size: 11px; color: var(--text-dim); line-height: 1.9; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">캐싱스쿼럴 · Borderless AI Proxy</div>
+    <h1>팀 단위 사용 플로우</h1>
+    <p class="lede">한 팀이 이 프록시를 실제로 어떻게 쓰는지. 프록시라는 개념부터, 팀원 셋의 하루, 그리고 데모 촬영 컷까지.</p>
+    <nav class="docnav" aria-label="문서">
+      <a href="./team-flow.html" aria-current="page">팀 플로우</a>
+      <a href="./pipeline-flow.html">파이프라인 흐름도</a>
+      <a href="./dashboard-mockup.html">대시보드 목업</a>
+      <a href="./routing.md">라우팅 문서</a>
+    </nav>
+  </header>
+
+  <!-- ══ 01 ══════════════════════════════════════════ -->
+  <section>
+    <div class="sec-num">01</div>
+    <h2>프록시가 뭔가</h2>
+    <p class="sec-lede">
+      단어 뜻이 <em>대리</em>다. 내가 직접 가지 않고 중간에 있는 서버가 나를 대신 다녀온다.
+      중간에 앉아 있으니 <strong>오가는 내용에 손을 댈 수 있고, 기록을 남길 수 있다.</strong> 이게 전부다.
+    </p>
+
+    <div class="wire bad">
+      <span class="wire-tag">직접 호출</span>
+      <div class="chain">
+        <div class="box"><div class="b-name">팀원</div><div class="b-sub">각자 API 키</div></div>
+        <div class="link">──────▶</div>
+        <div class="box"><div class="b-name">OpenAI</div><div class="b-sub">gpt-4o</div></div>
+      </div>
+      <p class="wire-note">
+        중간이 없으니 <b>손댈 수도, 기록할 수도 없다.</b>
+        원어 그대로 나가서 토큰이 2배 들고, 사내 용어는 번역되며 깨지고, 누가 얼마 썼는지 아무도 모른다.
+      </p>
+    </div>
+
+    <div class="wire good">
+      <span class="wire-tag">프록시 경유</span>
+      <div class="chain">
+        <div class="box"><div class="b-name">팀원</div><div class="b-sub">소셜 로그인만</div></div>
+        <div class="link hot">──────▶</div>
+        <div class="box hub"><div class="b-name">우리 프록시</div><div class="b-sub">회사 API 키 보관</div></div>
+        <div class="link hot">──────▶</div>
+        <div class="box"><div class="b-name">OpenAI</div><div class="b-sub">gpt-4o</div></div>
+      </div>
+      <p class="wire-note">
+        회사에 <b>통역 창구</b>가 하나 생긴 셈이다. 직원이 해외에 직접 전화하지 않고 창구에 말하면,
+        창구가 대신 전화를 건다. 그 창구가 하는 일이 셋이다.
+        통역해주고<span class="num"> (피벗)</span>, 기밀 용어는 가려서 말하고<span class="num"> (마스킹)</span>, 통화료를 장부에 적는다<span class="num"> (로깅)</span>.
+      </p>
+    </div>
+  </section>
+
+  <!-- ══ 02 ══════════════════════════════════════════ -->
+  <section>
+    <div class="sec-num">02</div>
+    <h2>이 팀에 누가 있나</h2>
+    <p class="sec-lede">
+      한국 커머스 스타트업. 개발 외주로 베트남·필리핀 개발자를 쓴다.
+      셋은 같은 배포 문서 <code>SOP1</code>과 같은 칸반 보드 <code>Kanban-B</code>를 보며 일한다.
+      쓰는 말만 다르다.
+    </p>
+
+    <div class="grid-3">
+      <div class="person p-t1">
+        <div class="pr-name">김지훈</div>
+        <div class="pr-role">한국 · 팀장 / 결제자</div>
+        <div class="pr-meta">
+          <div><span>모국어</span><span class="num">ko</span></div>
+          <div><span>라우팅 티어</span><span class="chip c-t1">TIER_1</span></div>
+          <div><span>피벗</span><span class="num">없음 (폴백)</span></div>
+          <div><span>주 사용 화면</span><span>대시보드</span></div>
+        </div>
+      </div>
+      <div class="person p-t2">
+        <div class="pr-name">Linh</div>
+        <div class="pr-role">베트남 · 백엔드 개발</div>
+        <div class="pr-meta">
+          <div><span>모국어</span><span class="num">vi</span></div>
+          <div><span>라우팅 티어</span><span class="chip c-t2">TIER_2</span></div>
+          <div><span>피벗</span><span class="num">영어 경유</span></div>
+          <div><span>주 사용 화면</span><span>질문 입력</span></div>
+        </div>
+      </div>
+      <div class="person p-t3">
+        <div class="pr-name">Andrea</div>
+        <div class="pr-role">필리핀 · QA</div>
+        <div class="pr-meta">
+          <div><span>모국어</span><span class="num">tl</span></div>
+          <div><span>라우팅 티어</span><span class="chip c-t3">TIER_3</span></div>
+          <div><span>피벗</span><span class="num">형태소 힌트 + 영어</span></div>
+          <div><span>주 사용 화면</span><span>질문 입력</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="warn">
+      <div class="w-h">데모에서 반드시 나올 질문 · 한국어는요?</div>
+      <p>
+        <code>RoutingTier.TIER_BY_LANGUAGE</code>에 매핑된 언어는 <code>en</code>, <code>vi</code>, <code>tl</code> 셋뿐이다.
+        <code>ko</code>는 매핑에 없어서 <code>FALLBACK</code>인 <code>TIER_1</code>로 간다.
+        즉 지훈이 한국어로 질문하면 <strong>마스킹은 되지만 영어 피벗은 안 되고, 토큰 절감도 0이다.</strong>
+      </p>
+      <p>
+        한국 심사위원이라면 이걸 100% 물어본다. 답은 둘 중 하나로 미리 정해두자.
+        (가) <code>"ko"</code>를 <code>TIER_2</code>에 추가한다 — 매핑 한 줄이라 작업량은 거의 없다.
+        (나) 지훈은 결제자·관리자 역할로만 등장시키고 질문은 하지 않게 한다.
+      </p>
+    </div>
+  </section>
+
+  <!-- ══ 03 ══════════════════════════════════════════ -->
+  <section>
+    <div class="sec-num">03</div>
+    <h2>팀이 공유하는 것</h2>
+    <p class="sec-lede">
+      "LLM을 공유한다"는 표현은 정확하지 않다. LLM은 그냥 뒤에 있는 업스트림 API다.
+      팀이 실제로 공유하는 건 두 가지다.
+    </p>
+
+    <div class="grid-2">
+      <div class="panel share-yes">
+        <div class="share-h"><span class="mark">✓</span><span class="p-title">회사 API 키 (비용 계정)</span></div>
+        <p class="p-desc">팀원이 각자 ChatGPT를 결제하지 않는다. 회사가 키 하나로 프록시를 세우고 팀원은 그걸 통해 쓴다. 사내 Notion AI와 같은 구조다.</p>
+        <ul class="tight">
+          <li>비용이 한 곳에 모인다 → 대시보드가 성립한다</li>
+          <li>모든 요청이 한 관문을 지난다 → 파이프라인을 강제할 수 있다</li>
+          <li>계약 종료 시 계정만 지우면 끝난다</li>
+        </ul>
+      </div>
+      <div class="panel share-yes">
+        <div class="share-h"><span class="mark">✓</span><span class="p-title">팀 용어집</span></div>
+        <p class="p-desc"><code>SOP1</code>, <code>Kanban-B</code>는 팀 전체가 쓰는 말이다. 한 명이 등록하면 팀원 전원이 혜택을 받아야 의미가 있다.</p>
+        <ul class="tight">
+          <li>지훈이 등록 → Linh·Andrea 요청에 자동 적용</li>
+          <li>팀 단위여야 하는 <strong>진짜 이유</strong>가 여기다</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel share-no" style="margin-top:14px">
+      <div class="share-h"><span class="mark">✕</span><span class="p-title">공유하지 않는 것 · API 키 그 자체</span></div>
+      <p class="p-desc">
+        키는 프록시 서버 안에만 있다. Linh과 Andrea는 키를 보지도, 받지도 않는다. 구글 로그인만 한다.
+        <code>SecurityConfig</code>가 <code>/login</code>을 뺀 전부에 인증을 걸어놨고, <code>AuthProvider</code>에 google·kakao·naver가 있다.
+        키를 나눠주는 순간 마스킹·피벗·사용량 추적이 전부 무너지므로, 이건 설계상 양보할 수 없는 지점이다.
+      </p>
+    </div>
+  </section>
+
+  <!-- ══ 04 ══════════════════════════════════════════ -->
+  <section>
+    <div class="sec-num">04</div>
+    <h2>세팅 · 팀장이 딱 한 번</h2>
+    <p class="sec-lede">이 네 단계가 끝나면 팀원은 로그인만 하면 된다.</p>
+    <ol class="panel setup">
+      <li><span class="st-no">1</span><span>
+        <span class="st-name">회사 카드로 OpenAI API 키 발급</span>
+        <span class="st-desc">팀 전체가 쓸 키 하나. 개인별로 발급하지 않는다.</span>
+      </span></li>
+      <li><span class="st-no">2</span><span>
+        <span class="st-name">프록시 서버에 키 등록</span>
+        <span class="st-desc">서버 환경변수로 넣는다. 이 시점 이후 키는 아무도 볼 일이 없다.</span>
+      </span></li>
+      <li><span class="st-no">3</span><span>
+        <span class="st-name">팀원 초대 + 모국어 지정</span>
+        <span class="st-desc"><code>Member.nativeLang</code>에 저장된다. 라우팅은 감지 결과를 쓰지만, 이 값은 재번역 대상 언어를 고정하는 안전망이 된다.</span>
+      </span></li>
+      <li><span class="st-no">4</span><span>
+        <span class="st-name">팀 용어집에 사내 용어 등록</span>
+        <span class="st-desc"><code>SOP1</code>, <code>Kanban-B</code>. 이 목록이 마스킹 대상이다. 등록하지 않은 용어는 보호되지 않는다.</span>
+      </span></li>
+    </ol>
+  </section>
+
+  <!-- ══ 05 ══════════════════════════════════════════ -->
+  <section>
+    <div class="sec-num">05</div>
+    <h2>어느 하루 · 요청 하나가 지나가는 길</h2>
+    <p class="sec-lede">
+      팀원 입장에서는 그냥 "내 언어가 되는 ChatGPT"다. 아래 6단계는 <span class="num">2초</span> 안에 지나가고 본인은 보지 못한다.
+      탭을 눌러 세 사람을 비교해보자. 같은 파이프라인인데 티어에 따라 켜지는 단계가 다르다.
+    </p>
+
+    <div class="tabs" role="tablist" aria-label="팀원">
+      <button class="tab" role="tab" data-who="linh"   data-tier="TIER_2" aria-selected="true">
+        Linh <span class="chip c-t2">TIER_2</span>
+      </button>
+      <button class="tab" role="tab" data-who="andrea" data-tier="TIER_3" aria-selected="false">
+        Andrea <span class="chip c-t3">TIER_3</span>
+      </button>
+      <button class="tab" role="tab" data-who="jihoon" data-tier="TIER_1" aria-selected="false">
+        김지훈 <span class="chip c-t1">TIER_1</span>
+      </button>
+      <button class="tab" role="tab" data-who="short"  data-tier="SKIP" aria-selected="false">
+        짧은 인사말 <span class="chip c-skip">SKIP</span>
+      </button>
+    </div>
+
+    <div class="panel" role="tabpanel" aria-live="polite">
+      <div class="trace-head" id="traceHead"></div>
+      <ol class="trace" id="traceList"></ol>
+    </div>
+  </section>
+
+  <!-- ══ 06 ══════════════════════════════════════════ -->
+  <section>
+    <div class="sec-num">06</div>
+    <h2>프록시가 없었다면</h2>
+    <p class="sec-lede">이 대비가 데모의 핵심이다. 문제를 먼저 보여주지 않으면 해결책이 안 와닿는다.</p>
+
+    <div class="grid-3">
+      <div class="fail">
+        <div class="f-q">Linh이 OpenAI에 직접 물었다면</div>
+        <p class="f-a">
+          베트남어 원문이 그대로 나가서 <b>토큰이 1.5배</b> 든다.
+          그리고 <code>SOP1</code>이 <code>"Quy trình 1"</code> 같은 걸로 번역돼 <b>답이 엉뚱해진다.</b>
+        </p>
+      </div>
+      <div class="fail">
+        <div class="f-q">지훈이 키를 나눠줬다면</div>
+        <p class="f-a">
+          마스킹도 피벗도 못 한다. <b>누가 얼마 썼는지 추적이 안 되고</b>,
+          Andrea가 계약을 끝내고 나가도 <b>키를 계속 쓸 수 있다.</b>
+        </p>
+      </div>
+      <div class="fail">
+        <div class="f-q">용어집이 개인 소유라면</div>
+        <p class="f-a">
+          Linh이 등록한 <code>SOP1</code>이 Andrea에게 적용되지 않는다.
+          <b>팀원 수만큼 같은 용어를 반복 등록</b>해야 한다. 지금 <code>Glossary</code>가 이 상태다.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 07 ══════════════════════════════════════════ -->
+  <section>
+    <div class="sec-num">07</div>
+    <h2>데모 촬영 컷 리스트</h2>
+    <p class="sec-lede">
+      총 <span class="num">2분 50초</span>. 시스템 흐름부터 보여주면 감이 안 온다. <strong>사람 셋으로 시작한다.</strong>
+      강조된 행이 순서를 바꾸면 안 되는 컷이다.
+    </p>
+
+    <div class="panel" style="padding:22px 10px 6px">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col" class="r">#</th>
+            <th scope="col">컷</th>
+            <th scope="col">화면</th>
+            <th scope="col" class="r">길이</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="r">1</td>
+            <td><span class="cut-t">세팅</span><span class="cut-d">팀장 시점</span></td>
+            <td>지훈이 키 등록 → 팀원 둘 초대 → 용어집에 <code>SOP1</code> 입력</td>
+            <td class="r">20s</td>
+          </tr>
+          <tr class="key">
+            <td class="r">2</td>
+            <td><span class="cut-t">Linh 질문</span><span class="cut-d">TIER_2</span></td>
+            <td>베트남어 입력 → 베트남어 답변. <code>SOP1</code>이 원형 그대로 살아있는 걸 클로즈업</td>
+            <td class="r">25s</td>
+          </tr>
+          <tr class="key">
+            <td class="r">3</td>
+            <td><span class="cut-t">대조</span><span class="cut-d">화면 분할</span></td>
+            <td>같은 질문을 OpenAI에 직접 → <code>SOP1</code> 깨짐 + 토큰 1.5배. <strong>컷 2 바로 뒤에 붙인다</strong></td>
+            <td class="r">25s</td>
+          </tr>
+          <tr>
+            <td class="r">4</td>
+            <td><span class="cut-t">X-ray</span><span class="cut-d">파이프라인</span></td>
+            <td>컷 2의 요청이 STEP 00~06을 지나가는 애니메이션. <a href="./pipeline-flow.html">흐름도</a> 그대로</td>
+            <td class="r">40s</td>
+          </tr>
+          <tr>
+            <td class="r">5</td>
+            <td><span class="cut-t">Andrea</span><span class="cut-d">TIER_3</span></td>
+            <td>타갈로그. 형태소 힌트 단계가 하나 더 켜지는 걸 보여준다</td>
+            <td class="r">20s</td>
+          </tr>
+          <tr>
+            <td class="r">6</td>
+            <td><span class="cut-t">SKIP</span><span class="cut-d">오버엔지니어링 방어</span></td>
+            <td>"cảm ơn" 같은 짧은 말 → 파이프라인 통째로 우회. 임계치 <span class="num">50</span>의 실측 근거 언급</td>
+            <td class="r">15s</td>
+          </tr>
+          <tr class="key">
+            <td class="r">7</td>
+            <td><span class="cut-t">대시보드</span><span class="cut-d">팀장 시점</span></td>
+            <td>언어별 격차가 평평해진 그래프. <strong>절감 금액이 아니라 절감률이 주인공</strong>. <a href="./dashboard-mockup.html">목업</a></td>
+            <td class="r">30s</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="quote">
+      <span class="q-label">내레이션 한 줄 요약</span>
+      회사가 프록시에 API 키를 한 번 꽂아두면, 팀원은 로그인만 하고 자기 언어로 묻는다.
+      프록시가 대신 영어로 물어보고 대신 답을 번역해온다. 사내 용어는 가려서 나가고 돌아올 때 복원된다.
+      <br><br>
+      절감은 부제고, 주제는 <strong>"언어가 달라도 같은 AI를 쓴다"</strong>다.
+    </div>
+  </section>
+
+  <footer>
+    등장인물과 회사는 시연용 설정이다. 티어 규칙·임계치·언어 매핑은 <a href="./routing.md">routing.md</a>의 실제 구현을 따랐다.<br>
+    캐싱스쿼럴 · Borderless AI Proxy · LIKELION TRACK HACKATHON 2026
+  </footer>
+
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // routing.md의 티어 규칙을 그대로 반영했다.
+  // TIER_1은 마스킹만, TIER_2는 피벗 추가, TIER_3는 형태소 힌트까지, SKIP은 전부 생략.
+  const CASES = {
+    linh: {
+      who: 'Linh · 베트남 백엔드', lang: 'vi', tier: 'TIER_2', cls: 'c-t2',
+      q: 'Tôi cần kiểm tra lại các bước rollback trong SOP1',
+      qKo: '"SOP1의 롤백 단계를 다시 확인해야 한다"',
+      tokens: 86, conf: 0.94, out: 152, saved: 142, ms: 1780,
+      term: 'SOP1', masked: 'Tôi cần kiểm tra lại các bước rollback trong {TERM_01}',
+      pivot: true, morph: false,
+      pivotText: 'I need to review the rollback steps in {TERM_01}'
+    },
+    andrea: {
+      who: 'Andrea · 필리핀 QA', lang: 'tl', tier: 'TIER_3', cls: 'c-t3',
+      q: 'Paano ko iu-update ang SOP1 pagkatapos ng release',
+      qKo: '"릴리스 후에 SOP1을 어떻게 갱신하나"',
+      tokens: 126, conf: 0.89, out: 218, saved: 232, ms: 2410,
+      term: 'SOP1', masked: 'Paano ko iu-update ang {TERM_01} pagkatapos ng release',
+      pivot: true, morph: true,
+      morphText: 'iu-update = 어근 update + 접두사 i- + 중철 u- → 미래시제 목적격 초점',
+      pivotText: 'How do I update {TERM_01} after the release'
+    },
+    jihoon: {
+      who: '김지훈 · 한국 팀장', lang: 'ko', tier: 'TIER_1', cls: 'c-t1',
+      q: 'SOP1의 롤백 절차를 요약해줘',
+      qKo: null,
+      tokens: 61, conf: 0.91, out: 158, saved: 0, ms: 1290,
+      term: 'SOP1', masked: '{TERM_01}의 롤백 절차를 요약해줘',
+      pivot: false, morph: false,
+      note: 'ko가 TIER_BY_LANGUAGE에 없어 FALLBACK(TIER_1)으로 갔다. 피벗을 안 하므로 절감이 0이다.'
+    },
+    short: {
+      who: '누구든 · 짧은 인사말', lang: 'und', tier: 'SKIP', cls: 'c-skip',
+      q: 'cảm ơn nhé',
+      qKo: '"고마워"',
+      tokens: 9, conf: null, out: 38, saved: 0, ms: 640,
+      term: null, masked: null,
+      pivot: false, morph: false,
+      note: '토큰 9개가 임계치 50 미만이라 언어 감지조차 하지 않고 통과시켰다. source_lang은 und로 남는다.'
+    }
+  };
+
+  const LANG_KO = { vi: '베트남어', tl: '타갈로그', ko: '한국어', und: '미판정' };
+  const hi = (s) => s.replace(/\{TERM_\d+\}/g, (m) => `<mark>${m}</mark>`);
+  const fmt = (n) => n.toLocaleString('en-US');
+
+  function render(key) {
+    const c = CASES[key];
+    const masking = c.tier !== 'SKIP';
+
+    document.getElementById('traceHead').innerHTML = `
+      <span class="chip ${c.cls}">${c.tier}</span>
+      <span class="th-q">${c.who}</span>
+      <span class="tr-text">·&nbsp; ${fmt(c.tokens)} tokens &nbsp;·&nbsp; ${fmt(c.ms)}ms
+        &nbsp;·&nbsp; 절감 ${c.saved > 0 ? '<span class="ok">+' + fmt(c.saved) + '</span>' : '0'}</span>
+    `;
+
+    const steps = [
+      { n: '00', name: '요청 수신', on: true,
+        text: `${c.q}${c.qKo ? `<br><span style="opacity:.6">${c.qKo}</span>` : ''}`,
+        who: `${c.who} 입장에서는 그냥 채팅창에 자기 말로 쓴 것뿐이다` },
+      { n: '01', name: '언어 감지 &amp; 티어 분류', on: true,
+        text: c.tier === 'SKIP'
+          ? `${fmt(c.tokens)} tokens &lt; 임계치 50 → SKIP (언어 감지 생략)`
+          : `${fmt(c.tokens)} tokens (o200k_base) · ${c.lang} 신뢰도 ${c.conf} → ${c.tier}`,
+        who: 'CostRouter · 판단만 하고 텍스트는 건드리지 않는다' },
+      { n: '02', name: '용어집 마스킹', on: masking,
+        text: masking
+          ? (c.term ? hi(c.masked) : '치환할 용어 없음')
+          : '임계치 미만 · 생략',
+        who: masking ? `팀 용어집에서 "${c.term}" 발견 → 치환` : '' },
+      { n: '03', name: c.morph ? '형태소 힌트 주입 + 영어 피벗' : '영어 피벗', on: c.pivot,
+        text: c.pivot
+          ? (c.morph ? `${c.morphText}<br>→ ${hi(c.pivotText)}` : hi(c.pivotText))
+          : (c.tier === 'TIER_1' ? '영어권·미지원 언어 · 피벗 불필요' : '생략'),
+        who: c.morph ? 'FastAPI 사이드카 호출 (tagalog-stemmer)' : (c.pivot ? '번역 클라이언트' : '') },
+      { n: '04', name: 'LLM 추론', on: true,
+        text: `gpt-4o 1회 호출 · 출력 ${fmt(c.out)} tokens`,
+        who: '회사 API 키는 이 서버 안에만 있다. 팀원은 본 적이 없다' },
+      { n: '05', name: '재번역 + 마스킹 복원', on: masking || c.pivot,
+        text: !masking ? '복원 대상 없음'
+          : (c.pivot
+              ? `영어 답변 → ${LANG_KO[c.lang]} 재번역 · {TERM_01} → <span class="ok">${c.term}</span> 복원`
+              : `{TERM_01} → <span class="ok">${c.term}</span> 복원 (재번역 없음)`),
+        who: c.pivot ? 'LibreTranslate + TermRestorer' : 'TermRestorer' },
+      { n: '06', name: '응답 + 대시보드 로깅', on: true,
+        text: `${LANG_KO[c.lang]}로 최종 답변 전송 · proxy_request 1행 + usage_log 1행 기록`,
+        who: '이 2행이 쌓여서 팀장이 보는 대시보드가 된다' }
+    ];
+
+    document.getElementById('traceList').innerHTML = steps.map((s) => `
+      <li class="${s.on ? '' : 'off'}">
+        <span class="tr-step">STEP ${s.n}</span>
+        <span>
+          <span class="tr-name">${s.name}</span>
+          <span class="tr-text">${s.text}</span>
+          ${s.who ? `<span class="tr-who">${s.who}</span>` : ''}
+        </span>
+      </li>
+    `).join('') + (c.note ? `
+      <li style="grid-template-columns:1fr; padding-top:16px">
+        <span class="tr-text" style="color:var(--t3)">참고 · ${c.note}</span>
+      </li>` : '');
+  }
+
+  const tabs = [...document.querySelectorAll('.tab')];
+  tabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      tabs.forEach((t) => t.setAttribute('aria-selected', 'false'));
+      tab.setAttribute('aria-selected', 'true');
+      render(tab.dataset.who);
+    });
+  });
+
+  render('linh');
+})();
+</script>
+</body>
+</html>

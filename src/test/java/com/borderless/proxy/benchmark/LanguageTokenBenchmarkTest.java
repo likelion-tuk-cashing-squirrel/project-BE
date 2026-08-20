@@ -78,6 +78,8 @@ class LanguageTokenBenchmarkTest {
     @DisplayName("같은 문장을 언어별로 번역해 토큰 수를 비교한다")
     void measure() throws IOException {
         Provenance provenance = Provenance.capture();
+        printHeader(provenance);
+
         List<Row> rows = new ArrayList<>();
 
         for (String source : SOURCES) {
@@ -93,9 +95,52 @@ class LanguageTokenBenchmarkTest {
             rows.add(new Row(source, englishTokens, byLanguage));
         }
 
+        printSummary(rows);
+
         writeRawLog(provenance);
         writeRawData(rows, provenance);
         writeChart(rows, provenance);
+        writeSummary(rows, provenance);
+    }
+
+    /**
+     * 발표 자료에 그대로 쓸 수 있는 짧은 요약.
+     *
+     * <p>CI가 이 파일을 {@code $GITHUB_STEP_SUMMARY}에 넣어 실행 결과 페이지에 표로 띄운다.
+     * 그러면 우리가 만든 이미지가 아니라 GitHub이 호스팅하는 URL이 증빙이 된다.
+     *
+     * <p>상세 로그와 원시 응답은 여기 넣지 않는다. 슬라이드에 들어갈 분량이 아니고,
+     * 필요한 사람은 아티팩트에서 받으면 된다.
+     */
+    private void writeSummary(List<Row> rows, Provenance p) throws IOException {
+        int englishTotal = rows.stream().mapToInt(Row::englishTokens).sum();
+
+        StringBuilder out = new StringBuilder();
+        out.append("## 언어별 토큰 소모량\n\n");
+        out.append("같은 문장 5개를 DeepL로 번역해 `o200k_base`로 계산. LLM 호출 없음.\n\n");
+        out.append("| 언어 | 토큰 | 영어 대비 | 영어로 바꿀 때 절감 |\n|---|---:|---:|---:|\n");
+        out.append("| 영어 | ").append(englishTotal).append(" | 1.00x | 기준 |\n");
+
+        for (Map.Entry<String, String> target : TARGETS.entrySet()) {
+            int total = rows.stream()
+                    .mapToInt(r -> r.byLanguage().get(target.getKey()).tokens())
+                    .sum();
+            out.append("| ").append(target.getValue())
+                    .append(" | ").append(total)
+                    .append(" | ").append(ratio(total, englishTotal)).append("x")
+                    .append(" | **-").append(reduction(total, englishTotal)).append("%**")
+                    .append(" |\n");
+        }
+
+        out.append("\n<sub>커밋 `").append(p.commit()).append("` · ")
+                .append(p.timestamp()).append(" · JTokkit 1.1.0 / o200k_base · ")
+                .append("DeepL API `POST /v2/translate`</sub>\n\n");
+        out.append("원시 요청·응답 본문과 문장별 상세는 이 실행의 아티팩트");
+        out.append("(`benchmark-results`)에 있습니다.\n");
+
+        Path path = Path.of("build", "measurement", "benchmark-summary.md");
+        Files.createDirectories(path.getParent());
+        Files.writeString(path, out.toString());
     }
 
     /**
@@ -128,11 +173,74 @@ class LanguageTokenBenchmarkTest {
 
         long elapsedMs = (System.nanoTime() - start) / 1_000_000;
         String responseJson = response.getBody();
+        int status = response.getStatusCode().value();
 
-        rawCalls.add(new RawCall(startedAt, targetCode, requestJson,
-                response.getStatusCode().value(), responseJson, elapsedMs));
+        rawCalls.add(new RawCall(startedAt, targetCode, requestJson, status, responseJson, elapsedMs));
 
-        return firstTranslation(responseJson);
+        // 콘솔에도 찍는다. 터미널 화면 자체가 증빙 자료로 쓰인다.
+        String translated = firstTranslation(responseJson);
+        System.out.printf("[%s] POST %s/v2/translate   EN -> %s%n",
+                startedAt, deepLProperties().getBaseUrl(), targetCode);
+        System.out.printf("             req  %s%n", requestJson);
+        System.out.printf("             res  %d  %dms  %s%n", status, elapsedMs, responseJson);
+        System.out.printf("             tok  EN %d  ->  %s %d   (%sx)%n%n",
+                tokenCalculator.countTokens(source), targetCode,
+                tokenCalculator.countTokens(translated),
+                ratio(tokenCalculator.countTokens(translated), tokenCalculator.countTokens(source)));
+
+        return translated;
+    }
+
+    private static final String RULE =
+            "==============================================================================";
+
+    private void printHeader(Provenance p) {
+        System.out.println();
+        System.out.println(RULE);
+        System.out.println(" 언어별 토큰 소모량 벤치마크");
+        System.out.printf(" %s  ·  commit %s (%s, %s)%n",
+                p.timestamp(), p.commit(), p.branch(), p.dirty());
+        System.out.println(" tokenizer: JTokkit 1.1.0 / o200k_base   ·   translator: DeepL API");
+        System.out.println(" LLM 호출 없음 (토큰 계산만)");
+        System.out.println(RULE);
+        System.out.println();
+    }
+
+    private void printSummary(List<Row> rows) {
+        int englishTotal = rows.stream().mapToInt(Row::englishTokens).sum();
+
+        System.out.println(RULE);
+        System.out.println(" 문장별");
+        System.out.println(RULE);
+        System.out.printf(" %-4s %8s", "", "EN");
+        TARGETS.forEach((code, name) -> System.out.printf(" %10s", code));
+        System.out.println();
+
+        int index = 1;
+        for (Row row : rows) {
+            System.out.printf(" #%-3d %8d", index++, row.englishTokens());
+            for (String code : TARGETS.keySet()) {
+                Translated t = row.byLanguage().get(code);
+                System.out.printf(" %5d %4sx", t.tokens(), ratio(t.tokens(), row.englishTokens()));
+            }
+            System.out.println();
+        }
+
+        System.out.println();
+        System.out.println(RULE);
+        System.out.println(" 합계 (문장 5개)");
+        System.out.println(RULE);
+        System.out.printf("  %-10s %6d tok   %5sx   %s%n", "영어", englishTotal, "1.00", "기준");
+        for (Map.Entry<String, String> target : TARGETS.entrySet()) {
+            int total = rows.stream()
+                    .mapToInt(r -> r.byLanguage().get(target.getKey()).tokens())
+                    .sum();
+            System.out.printf("  %-10s %6d tok   %5sx   영어로 바꾸면 -%s%%%n",
+                    target.getValue(), total, ratio(total, englishTotal),
+                    reduction(total, englishTotal));
+        }
+        System.out.println(RULE);
+        System.out.println();
     }
 
     /**

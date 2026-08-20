@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>사용량 대시보드 목업 · Borderless AI Proxy</title>
+
+<!--
+  Pretendard는 Google Fonts에 없다. pipeline-flow.html의 fonts.googleapis.com 링크는
+  실제로 로드되지 않고 조용히 기본 sans-serif로 폴백된다. 여기선 jsdelivr 배포본을 쓴다.
+-->
+<link rel="stylesheet" as="style" crossorigin
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+<style>
+  /* pipeline-flow.html과 동일한 토큰. 흐름도와 대시보드가 같은 제품으로 보이게 한다. */
+  :root {
+    --bg: #101114; --panel: #17181c; --panel-2: #1d1e23; --line: #2a2b31;
+    --text: #eceef0; --text-dim: #9a9ca3;
+    --accent: #7c8cff; --accent-dim: #7c8cff22;
+    --t2: #38bdf8; --t3: #fb923c;
+    --good: #4ade80;
+    --bad: #f87171;
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont,
+            system-ui, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg); color: var(--text); font-family: var(--sans);
+    line-height: 1.6; -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 44px 24px 90px; }
+
+  /* 숫자는 전부 mono. 자릿수가 흔들리지 않아야 실시간 갱신 때 안 튄다. */
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  a { color: var(--accent); }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+  /* ── header ─────────────────────────────────────────── */
+  header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin-bottom: 32px; }
+  .eyebrow { font-family: var(--mono); font-size: 12px; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 12px; }
+  h1 { font-size: clamp(24px, 3.4vw, 32px); font-weight: 900; letter-spacing: -0.01em; }
+  .sub { font-size: 13.5px; color: var(--text-dim); margin-top: 6px; }
+
+  .live-toggle {
+    display: inline-flex; align-items: center; gap: 9px;
+    background: var(--panel); border: 1px solid var(--line); color: var(--text);
+    border-radius: 999px; padding: 8px 16px 8px 13px;
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: 0.04em;
+    cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .live-toggle:hover { border-color: var(--text-dim); }
+  .live-toggle[aria-pressed="true"] { border-color: var(--good); color: var(--good); background: #4ade8014; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); flex-shrink: 0; }
+  .live-toggle[aria-pressed="true"] .dot { background: var(--good); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+
+  /* ── section / panel ────────────────────────────────── */
+  .sec-head { display: flex; align-items: baseline; gap: 12px; margin: 40px 0 14px; }
+  .sec-head h2 {
+    font-family: var(--mono); font-size: 11.5px; font-weight: 700; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.09em;
+  }
+  .sec-head .hint { font-size: 12px; color: var(--text-dim); opacity: .75; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 22px 24px; }
+
+  .badge-todo {
+    font-family: var(--mono); font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em;
+    color: var(--t3); background: #fb923c1c; border: 1px solid #fb923c55;
+    padding: 2px 7px; border-radius: 4px; white-space: nowrap; vertical-align: 2px;
+  }
+
+  /* ── KPI ────────────────────────────────────────────── */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(216px, 1fr)); gap: 14px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px 18px; position: relative; overflow: hidden; }
+  .kpi::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 2px; background: var(--line); }
+  .kpi.hero::before { background: var(--good); }
+  .kpi .k-label { font-size: 12.5px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+  .kpi .k-value { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 30px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
+  .kpi.hero .k-value { color: var(--good); font-size: 34px; }
+  .kpi .k-unit { font-size: 15px; font-weight: 500; color: var(--text-dim); margin-left: 3px; }
+  .kpi .k-foot { font-family: var(--mono); font-size: 10.5px; color: var(--text-dim); margin-top: 9px; letter-spacing: 0.02em; }
+
+  /* 근거를 물었을 때 바로 열 수 있게 계산식을 붙여둔다 */
+  .why { border: 0; background: none; color: var(--text-dim); cursor: help; font-family: var(--mono); font-size: 10px;
+         width: 15px; height: 15px; border-radius: 50%; border: 1px solid var(--line); line-height: 1; }
+  .why:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ── 2단 그리드 ─────────────────────────────────────── */
+  .split { display: grid; grid-template-columns: 1.35fr 1fr; gap: 14px; }
+  @media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
+
+  .p-title { font-size: 14.5px; font-weight: 700; margin-bottom: 3px; }
+  .p-desc { font-size: 12.5px; color: var(--text-dim); margin-bottom: 20px; }
+
+  /* 스택 바 — 4개 항목 비율 비교엔 도넛보다 정확하고 애니메이션도 깔끔하다 */
+  .stack { display: flex; height: 34px; border-radius: 7px; overflow: hidden; background: var(--panel-2); }
+  .stack > span { transition: flex-grow .5s cubic-bezier(.4,0,.2,1); min-width: 2px; }
+  .seg-skip { background: #4b4d55; }
+  .seg-t1   { background: var(--accent); }
+  .seg-t2   { background: var(--t2); }
+  .seg-t3   { background: var(--t3); }
+
+  .legend { list-style: none; margin-top: 20px; display: grid; gap: 11px; }
+  .legend li { display: grid; grid-template-columns: 10px 1fr auto auto; align-items: center; gap: 11px; font-size: 13px; }
+  .legend .sw { width: 10px; height: 10px; border-radius: 3px; }
+  .legend .lg-name { font-family: var(--mono); font-size: 12px; letter-spacing: 0.03em; }
+  .legend .lg-note { font-size: 11.5px; color: var(--text-dim); font-family: var(--sans); }
+  .legend .lg-cnt { font-family: var(--mono); font-size: 12.5px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+  .legend .lg-pct { font-family: var(--mono); font-size: 13px; font-weight: 700; width: 54px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* 언어별 가로 바 */
+  .lang-list { list-style: none; display: grid; gap: 15px; }
+  .lang-row { display: grid; grid-template-columns: 92px 1fr 62px; align-items: center; gap: 12px; }
+  .lang-name { font-size: 13px; }
+  .lang-name code { font-family: var(--mono); font-size: 11px; color: var(--text-dim); }
+  .lang-bar { height: 8px; border-radius: 999px; background: var(--panel-2); overflow: hidden; }
+  .lang-bar > i { display: block; height: 100%; border-radius: 999px; transition: width .5s cubic-bezier(.4,0,.2,1); }
+  .lang-cnt { font-family: var(--mono); font-size: 12.5px; text-align: right; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+
+  /* ── 로그 테이블 ────────────────────────────────────── */
+  .log-layout { display: grid; grid-template-columns: 1fr 320px; gap: 14px; align-items: start; }
+  @media (max-width: 1000px) { .log-layout { grid-template-columns: 1fr; } }
+
+  .table-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .table-scroll { max-height: 420px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  caption { text-align: left; padding: 20px 24px 16px; }
+  thead th {
+    position: sticky; top: 0; background: var(--panel-2); z-index: 1;
+    font-family: var(--mono); font-size: 10.5px; font-weight: 500; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.07em; text-align: left;
+    padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  thead th.r { text-align: right; }
+  tbody td { padding: 11px 14px; font-size: 12.5px; border-bottom: 1px solid #22232840; white-space: nowrap; }
+  tbody td.r { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  tbody tr { cursor: pointer; transition: background .12s; }
+  tbody tr:hover { background: #ffffff07; }
+  tbody tr[aria-selected="true"] { background: var(--accent-dim); box-shadow: inset 2px 0 0 var(--accent); }
+
+  /* 새 행은 위에서 슬라이드 인. 데모에서 "살아 있는 시스템"으로 보이게 하는 건 이 하나다. */
+  tbody tr.fresh { animation: slideIn .45s cubic-bezier(.16,1,.3,1); }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-12px); background: var(--accent-dim); }
+    to   { opacity: 1; transform: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    tbody tr.fresh { animation: none; }
+    .stack > span, .lang-bar > i { transition: none; }
+    .live-toggle[aria-pressed="true"] .dot { animation: none; }
+  }
+
+  .tier-chip {
+    font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+    padding: 3px 8px; border-radius: 20px; border: 1px solid;
+  }
+  .tier-SKIP   { color: #a5a7ae; border-color: #4b4d55; background: #4b4d5522; }
+  .tier-TIER_1 { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+  .tier-TIER_2 { color: var(--t2); border-color: var(--t2); background: #38bdf822; }
+  .tier-TIER_3 { color: var(--t3); border-color: var(--t3); background: #fb923c22; }
+
+  .saved-pos { color: var(--good); }
+  .saved-zero { color: var(--text-dim); }
+  .st-fail { color: var(--bad); }
+
+  /* ── 트레이스 패널 ──────────────────────────────────── */
+  .trace-panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px 22px; position: sticky; top: 20px; }
+  .trace-panel .p-desc { margin-bottom: 16px; }
+  .trace-steps { list-style: none; display: grid; gap: 0; }
+  .trace-steps li { display: grid; grid-template-columns: 46px 1fr; gap: 11px; padding: 9px 0; border-top: 1px solid #22232860; }
+  .trace-steps li:first-child { border-top: 0; }
+  .trace-steps li.skipped { opacity: .38; }
+  .t-step { font-family: var(--mono); font-size: 10px; color: var(--accent); letter-spacing: 0.04em; padding-top: 2px; }
+  .trace-steps li.skipped .t-step { color: var(--text-dim); }
+  .t-body { font-size: 12.5px; min-width: 0; }
+  .t-name { font-weight: 600; margin-bottom: 3px; }
+  .t-text { font-family: var(--mono); font-size: 11px; color: var(--text-dim); word-break: break-word; line-height: 1.55; }
+  .t-text mark { background: var(--accent-dim); color: var(--accent); padding: 0 3px; border-radius: 3px; }
+  .t-text .restored { background: #4ade8020; color: var(--good); padding: 0 3px; border-radius: 3px; }
+
+  footer { margin-top: 52px; border-top: 1px solid var(--line); padding-top: 20px; font-family: var(--mono); font-size: 11px; color: var(--text-dim); line-height: 1.9; }
+  footer strong { color: var(--t3); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="eyebrow">캐싱스쿼럴 · Borderless AI Proxy</div>
+      <h1>팀 사용량 대시보드</h1>
+      <p class="sub">파일럿 팀 12명 · 최근 14일 누적 · <span class="num">gpt-4o</span></p>
+    </div>
+    <button class="live-toggle" id="liveBtn" aria-pressed="false">
+      <span class="dot" aria-hidden="true"></span>
+      <span id="liveLabel">실시간 시작</span>
+    </button>
+  </header>
+
+  <!-- ── KPI ─────────────────────────────────────────── -->
+  <div class="kpi-grid">
+
+    <div class="kpi hero">
+      <div class="k-label">
+        토큰 절감률
+        <button class="why" type="button" aria-label="계산 근거"
+          title="(피벗 없이 원어로 호출했을 때의 추정 입력 토큰 − 실제 입력 토큰) ÷ 추정 입력 토큰&#10;기준: 1,643,490 → 1,214,880">?</button>
+      </div>
+      <div class="k-value"><span id="kpiRate">26.1</span><span class="k-unit">%</span></div>
+      <div class="k-foot">1,643,490 → 1,214,880 tokens</div>
+    </div>
+
+    <div class="kpi">
+      <div class="k-label">절감 토큰</div>
+      <div class="k-value"><span id="kpiSaved">428,610</span></div>
+      <div class="k-foot">SUM(usage_log.saved_tokens)</div>
+    </div>
+
+    <div class="kpi">
+      <div class="k-label">
+        보호된 사내 용어
+        <span class="badge-todo">스키마 추가 필요</span>
+      </div>
+      <div class="k-value"><span id="kpiTerms">1,946</span><span class="k-unit">건</span></div>
+      <div class="k-foot">masked_term_count 컬럼 없음 · #7</div>
+    </div>
+
+    <div class="kpi">
+      <div class="k-label">평균 응답 시간</div>
+      <div class="k-value"><span id="kpiLatency">1,842</span><span class="k-unit">ms</span></div>
+      <div class="k-foot">AVG(usage_log.latency_ms)</div>
+    </div>
+
+    <div class="kpi">
+      <div class="k-label">처리 요청</div>
+      <div class="k-value"><span id="kpiReq">3,127</span></div>
+      <div class="k-foot">실패 <span class="num">14</span>건 · 성공률 <span class="num">99.6%</span></div>
+    </div>
+
+    <div class="kpi">
+      <div class="k-label">
+        절감 비용
+        <button class="why" type="button" aria-label="계산 근거"
+          title="절감 토큰 × gpt-4o 입력 단가 $2.50 / 1M&#10;428,610 / 1,000,000 × 2.50 = $1.07&#10;14일 실측값. 월 환산은 추정치다.">?</button>
+      </div>
+      <div class="k-value"><span class="k-unit" style="margin:0 2px 0 0">$</span><span id="kpiCost">1.07</span></div>
+      <div class="k-foot">월 환산 추정 <span class="num">$2.30</span> · 약 <span class="num">3,200원</span></div>
+    </div>
+
+  </div>
+
+  <!-- ── 분포 ────────────────────────────────────────── -->
+  <div class="sec-head">
+    <h2>Distribution</h2>
+    <span class="hint">색상은 pipeline-flow.html의 티어 색과 일치한다</span>
+  </div>
+
+  <div class="split">
+
+    <section class="panel" aria-labelledby="tierTitle">
+      <div class="p-title" id="tierTitle">라우팅 티어 분포</div>
+      <p class="p-desc"><code class="num">proxy_request.route_decision</code> 기준. 전처리를 실제로 태운 비율을 본다.</p>
+
+      <div class="stack" role="img" aria-label="SKIP 21.4%, TIER_1 34.2%, TIER_2 28.7%, TIER_3 15.7%">
+        <span class="seg-skip" style="flex-grow:669"></span>
+        <span class="seg-t1"   style="flex-grow:1069"></span>
+        <span class="seg-t2"   style="flex-grow:897"></span>
+        <span class="seg-t3"   style="flex-grow:492"></span>
+      </div>
+
+      <ul class="legend">
+        <li>
+          <span class="sw seg-skip"></span>
+          <span><span class="lg-name">SKIP</span> <span class="lg-note">임계치 50 미만 · 파이프라인 우회</span></span>
+          <span class="lg-cnt">669</span><span class="lg-pct">21.4%</span>
+        </li>
+        <li>
+          <span class="sw seg-t1"></span>
+          <span><span class="lg-name">TIER_1</span> <span class="lg-note">영어·미지원 언어 · 마스킹만</span></span>
+          <span class="lg-cnt">1,069</span><span class="lg-pct">34.2%</span>
+        </li>
+        <li>
+          <span class="sw seg-t2"></span>
+          <span><span class="lg-name">TIER_2</span> <span class="lg-note">베트남어 · 피벗 + 재번역</span></span>
+          <span class="lg-cnt">897</span><span class="lg-pct">28.7%</span>
+        </li>
+        <li>
+          <span class="sw seg-t3"></span>
+          <span><span class="lg-name">TIER_3</span> <span class="lg-note">타갈로그 · 형태소 힌트 + 피벗</span></span>
+          <span class="lg-cnt">492</span><span class="lg-pct">15.7%</span>
+        </li>
+      </ul>
+    </section>
+
+    <section class="panel" aria-labelledby="langTitle">
+      <div class="p-title" id="langTitle">감지 언어 분포</div>
+      <p class="p-desc"><code class="num">proxy_request.source_lang</code> 기준. SKIP은 언어 감지 자체를 생략해 <code class="num">und</code>로 남는다.</p>
+
+      <ul class="lang-list">
+        <li class="lang-row">
+          <span class="lang-name">영어 <code>en</code></span>
+          <span class="lang-bar"><i style="width:100%; background:var(--accent)"></i></span>
+          <span class="lang-cnt">1,069</span>
+        </li>
+        <li class="lang-row">
+          <span class="lang-name">베트남어 <code>vi</code></span>
+          <span class="lang-bar"><i style="width:83.9%; background:var(--t2)"></i></span>
+          <span class="lang-cnt">897</span>
+        </li>
+        <li class="lang-row">
+          <span class="lang-name">미판정 <code>und</code></span>
+          <span class="lang-bar"><i style="width:62.6%; background:#4b4d55"></i></span>
+          <span class="lang-cnt">669</span>
+        </li>
+        <li class="lang-row">
+          <span class="lang-name">타갈로그 <code>tl</code></span>
+          <span class="lang-bar"><i style="width:46.0%; background:var(--t3)"></i></span>
+          <span class="lang-cnt">492</span>
+        </li>
+      </ul>
+
+      <div class="p-desc" style="margin:22px 0 0; padding-top:16px; border-top:1px solid var(--line)">
+        같은 의미 문장의 토큰 수 &nbsp;<span class="num" style="color:var(--accent)">en 10</span>
+        &nbsp;/&nbsp;<span class="num" style="color:var(--t2)">vi 14</span>
+        &nbsp;/&nbsp;<span class="num" style="color:var(--t3)">tl 20</span>
+        <br>이 격차가 이 프록시의 존재 이유다.
+      </div>
+    </section>
+
+  </div>
+
+  <!-- ── 로그 ────────────────────────────────────────── -->
+  <div class="sec-head">
+    <h2>Live requests</h2>
+    <span class="hint">행을 클릭하면 그 요청이 지나간 파이프라인이 열린다</span>
+  </div>
+
+  <div class="log-layout">
+
+    <div class="table-panel">
+      <table>
+        <caption>
+          <span class="p-title">요청 로그</span>
+          <p class="p-desc" style="margin:0">최신순 · 운영에서는 SSE로 스트리밍한다</p>
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">시각</th>
+            <th scope="col">언어</th>
+            <th scope="col">티어</th>
+            <th scope="col" class="r">입력</th>
+            <th scope="col" class="r">출력</th>
+            <th scope="col" class="r">절감</th>
+            <th scope="col" class="r">지연</th>
+            <th scope="col">상태</th>
+          </tr>
+        </thead>
+        <tbody id="logBody"></tbody>
+      </table>
+    </div>
+
+    <aside class="trace-panel" aria-live="polite">
+      <div class="p-title">파이프라인 트레이스</div>
+      <p class="p-desc" id="traceMeta">—</p>
+      <ol class="trace-steps" id="traceSteps"></ol>
+    </aside>
+
+  </div>
+
+  <footer>
+    목업 · 표시된 수치는 시연용 더미 데이터다.<br>
+    <strong>saved_tokens</strong> 계산 정의와 <strong>masked_term_count</strong> 컬럼은 아직 코드에 없다. 데모 전에 확정해야 이 화면의 숫자에 근거가 생긴다.<br>
+    캐싱스쿼럴 · LIKELION TRACK HACKATHON 2026
+  </footer>
+
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ── 더미 로그. 절감량은 문서의 티어 규칙과 맞춰뒀다.
+  //    SKIP·TIER_1은 피벗을 안 하므로 절감이 0이다.
+  const SEED = [
+    { t: '14:32:07', lang: 'tl',  tier: 'TIER_3', inTok: 118, outTok: 204, saved: 214, ms: 2340, ok: true,
+      terms: ['SOP1'], src: 'Nagsulat ako ng SOP1 para sa deployment' },
+    { t: '14:31:52', lang: 'vi',  tier: 'TIER_2', inTok:  86, outTok: 152, saved: 142, ms: 1780, ok: true,
+      terms: ['Hạ tầng ABC'], src: 'Tôi cần kiểm tra lại cấu hình của Hạ tầng ABC' },
+    { t: '14:31:40', lang: 'und', tier: 'SKIP',   inTok:   9, outTok:  38, saved:   0, ms:  640, ok: true,
+      terms: [], src: 'thanks, got it' },
+    { t: '14:31:18', lang: 'en',  tier: 'TIER_1', inTok:  58, outTok: 141, saved:   0, ms: 1210, ok: true,
+      terms: ['SOP1'], src: 'Summarize the rollback steps in SOP1 for the on-call team' },
+    { t: '14:30:55', lang: 'tl',  tier: 'TIER_3', inTok: 132, outTok: 226, saved: 246, ms: 2510, ok: true,
+      terms: ['SOP1', 'Kanban-B'], src: 'Ipaliwanag mo ang SOP1 na naka-link sa Kanban-B' },
+    { t: '14:30:31', lang: 'vi',  tier: 'TIER_2', inTok:  94, outTok: 168, saved: 158, ms: 1690, ok: true,
+      terms: [], src: 'Quy trình phê duyệt release hiện tại có mấy bước' },
+    { t: '14:30:02', lang: 'vi',  tier: 'TIER_2', inTok:  71, outTok:   0, saved:   0, ms: 4120, ok: false,
+      terms: [], src: 'Cho tôi biết trạng thái deploy mới nhất' }
+  ];
+
+  const LANG_LABEL = { en: '영어', vi: '베트남어', tl: '타갈로그', und: '미판정' };
+
+  const $ = (id) => document.getElementById(id);
+  const body = $('logBody');
+  const fmt = (n) => n.toLocaleString('en-US');
+
+  // ── 테이블 행 ────────────────────────────────────────
+  let rowSeq = 0;
+  const rowData = new Map();
+
+  function buildRow(d, fresh) {
+    const id = 'r' + (rowSeq++);
+    rowData.set(id, d);
+
+    const tr = document.createElement('tr');
+    tr.id = id;
+    tr.tabIndex = 0;
+    tr.setAttribute('aria-selected', 'false');
+    if (fresh) tr.className = 'fresh';
+
+    const savedCell = d.saved > 0
+      ? `<span class="saved-pos">+${fmt(d.saved)}</span>`
+      : `<span class="saved-zero">—</span>`;
+
+    tr.innerHTML = `
+      <td class="num" style="color:var(--text-dim)">${d.t}</td>
+      <td>${LANG_LABEL[d.lang]} <code class="num" style="font-size:11px;color:var(--text-dim)">${d.lang}</code></td>
+      <td><span class="tier-chip tier-${d.tier}">${d.tier}</span></td>
+      <td class="r">${fmt(d.inTok)}</td>
+      <td class="r">${d.ok ? fmt(d.outTok) : '—'}</td>
+      <td class="r">${savedCell}</td>
+      <td class="r" style="color:${d.ms > 3000 ? 'var(--bad)' : 'inherit'}">${fmt(d.ms)}</td>
+      <td>${d.ok ? '<span style="color:var(--good)">OK</span>' : '<span class="st-fail">FAILED</span>'}</td>
+    `;
+
+    const pick = () => select(tr);
+    tr.addEventListener('click', pick);
+    tr.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); }
+    });
+    return tr;
+  }
+
+  // ── 트레이스 패널 ────────────────────────────────────
+  // pipeline-flow.html의 5단계를 그대로 따르되, 티어 플래그에 따라 흐리게 처리한다.
+  function renderTrace(d) {
+    const masked = d.terms.reduce(
+      (acc, term, i) => acc.replaceAll(term, `{TERM_${String(i + 1).padStart(2, '0')}}`),
+      d.src
+    );
+    const hi = (s) => s.replace(/\{TERM_\d+\}/g, (m) => `<mark>${m}</mark>`);
+
+    const pivot   = d.tier === 'TIER_2' || d.tier === 'TIER_3';
+    const morph   = d.tier === 'TIER_3';
+    const masking = d.tier !== 'SKIP';
+
+    $('traceMeta').innerHTML =
+      `<span class="num">${d.t}</span> · <span class="tier-chip tier-${d.tier}">${d.tier}</span> · ` +
+      `<span class="num">${fmt(d.ms)}ms</span>`;
+
+    const steps = [
+      { n: '00', name: '요청 수신', on: true,
+        text: d.src },
+      { n: '01', name: '언어 감지 & 티어 분류', on: true,
+        text: `${d.lang} → ${d.tier} · ${fmt(d.inTok)} tokens (o200k_base)` },
+      { n: '02', name: '용어집 마스킹', on: masking,
+        text: masking
+          ? (d.terms.length ? hi(masked) : '치환할 용어 없음')
+          : '임계치 미만 · 생략' },
+      { n: '03', name: morph ? '형태소 힌트 주입 + 영어 피벗' : '영어 피벗', on: pivot,
+        text: pivot
+          ? (morph ? 'nagsulat = 어근 sulat + 접두사 nag → 힌트 포함 영어 변환' : '형태소 처리 없이 곧장 영어 변환')
+          : '피벗 불필요' },
+      { n: '04', name: 'LLM 추론', on: true,
+        text: d.ok ? `gpt-4o · 출력 ${fmt(d.outTok)} tokens` : '업스트림 타임아웃 · 재시도 소진' },
+      { n: '05', name: '재번역 + 마스킹 복원', on: d.ok && (pivot || masking),
+        text: !d.ok ? '미실행'
+          : d.terms.length
+            ? `{TERM_01} → <span class="restored">${d.terms[0]}</span> 복원 완료`
+            : (pivot ? `영어 답변 → ${LANG_LABEL[d.lang]} 재번역` : '복원 대상 없음') },
+      { n: '06', name: '응답 + 로깅', on: true,
+        text: d.ok
+          ? `절감 ${d.saved > 0 ? '+' + fmt(d.saved) : '0'} tokens · usage_log 기록`
+          : 'status = FAILED 로 기록' }
+    ];
+
+    $('traceSteps').innerHTML = steps.map((s) => `
+      <li class="${s.on ? '' : 'skipped'}">
+        <span class="t-step">STEP ${s.n}</span>
+        <span class="t-body">
+          <span class="t-name">${s.name}</span>
+          <span class="t-text">${s.text}</span>
+        </span>
+      </li>
+    `).join('');
+  }
+
+  function select(tr) {
+    body.querySelectorAll('tr[aria-selected="true"]')
+        .forEach((r) => r.setAttribute('aria-selected', 'false'));
+    tr.setAttribute('aria-selected', 'true');
+    renderTrace(rowData.get(tr.id));
+  }
+
+  SEED.forEach((d) => body.appendChild(buildRow(d, false)));
+  select(body.firstElementChild);   // TIER_3 요청을 기본 선택 — 파이프라인 전체가 보인다
+
+  // ── 실시간 스트리밍 ──────────────────────────────────
+  const POOL = [
+    { lang: 'tl',  tier: 'TIER_3', inTok: 126, outTok: 218, saved: 232, ms: 2410, ok: true,
+      terms: ['SOP1'], src: 'Paano ko iu-update ang SOP1 pagkatapos ng release' },
+    { lang: 'vi',  tier: 'TIER_2', inTok:  79, outTok: 144, saved: 131, ms: 1620, ok: true,
+      terms: ['Kanban-B'], src: 'Ai đang phụ trách Kanban-B trong sprint này' },
+    { lang: 'und', tier: 'SKIP',   inTok:  12, outTok:  41, saved:   0, ms:  580, ok: true,
+      terms: [], src: 'ok thanks' },
+    { lang: 'en',  tier: 'TIER_1', inTok:  64, outTok: 158, saved:   0, ms: 1290, ok: true,
+      terms: ['SOP1'], src: 'What changed in SOP1 since last week' },
+    { lang: 'vi',  tier: 'TIER_2', inTok: 103, outTok: 181, saved: 174, ms: 1750, ok: true,
+      terms: [], src: 'Tóm tắt các bước triển khai cho môi trường staging' },
+    { lang: 'tl',  tier: 'TIER_3', inTok: 141, outTok: 239, saved: 261, ms: 2580, ok: true,
+      terms: ['SOP1', 'Kanban-B'], src: 'Ikonekta mo ang SOP1 sa mga task sa Kanban-B' }
+  ];
+
+  const counters = {
+    req:     { el: $('kpiReq'),     v: 3127 },
+    saved:   { el: $('kpiSaved'),   v: 428610 },
+    terms:   { el: $('kpiTerms'),   v: 1946 },
+    base:    { v: 1643490 },
+    actual:  { v: 1214880 }
+  };
+
+  let timer = null;
+  let poolIdx = 0;
+
+  function push() {
+    const base = POOL[poolIdx++ % POOL.length];
+    const now = new Date();
+    const d = { ...base, t: now.toTimeString().slice(0, 8) };
+
+    body.prepend(buildRow(d, true));
+    while (body.children.length > 14) {
+      rowData.delete(body.lastElementChild.id);
+      body.removeChild(body.lastElementChild);
+    }
+
+    counters.req.v   += 1;
+    counters.saved.v += d.saved;
+    counters.terms.v += d.terms.length;
+    counters.actual.v += d.inTok;
+    counters.base.v   += d.inTok + d.saved;
+
+    counters.req.el.textContent   = fmt(counters.req.v);
+    counters.saved.el.textContent = fmt(counters.saved.v);
+    counters.terms.el.textContent = fmt(counters.terms.v);
+    $('kpiRate').textContent = (100 * (counters.base.v - counters.actual.v) / counters.base.v).toFixed(1);
+    $('kpiCost').textContent = (counters.saved.v / 1e6 * 2.5).toFixed(2);
+  }
+
+  $('liveBtn').addEventListener('click', (e) => {
+    const btn = e.currentTarget;
+    const on = btn.getAttribute('aria-pressed') === 'true';
+    if (on) {
+      clearInterval(timer); timer = null;
+      btn.setAttribute('aria-pressed', 'false');
+      $('liveLabel').textContent = '실시간 시작';
+    } else {
+      btn.setAttribute('aria-pressed', 'true');
+      $('liveLabel').textContent = 'LIVE';
+      push();
+      timer = setInterval(push, 3200);
+    }
+  });
+})();
+</script>
+</body>
+</html>
